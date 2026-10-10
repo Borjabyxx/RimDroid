@@ -22,6 +22,9 @@ public class ButtonElement extends ControlElement {
     private String text;
     private boolean isToggle;
     private Binding binding;
+    // Picture shown instead of the label (IconPacks); the label is the fallback when the file is gone.
+    private String icon;
+    private boolean iconNoTint;
 
     private int pointerId = -1;
     private boolean toggledOn = false;
@@ -29,7 +32,12 @@ public class ButtonElement extends ControlElement {
     private final Paint fill   = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint stroke = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint textPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private final Paint iconPaint = new Paint(Paint.ANTI_ALIAS_FLAG | Paint.FILTER_BITMAP_FLAG);
     private final RectF rect = new RectF();
+    private final RectF iconRect = new RectF();
+    // Tints a white-on-transparent icon like the label (made once, not per frame).
+    private static final android.graphics.ColorFilter WHITE_TINT =
+            new android.graphics.PorterDuffColorFilter(0xFFFFFFFF, android.graphics.PorterDuff.Mode.SRC_IN);
 
     public ButtonElement(InputControlsView view, ControlElementDescription d) {
         super(view, d);
@@ -38,6 +46,8 @@ public class ButtonElement extends ControlElement {
         this.isToggle = d.isToggle;
         this.binding = (d.bindings != null && d.bindings.length > 0)
                 ? Binding.fromName(d.bindings[0], Binding.MOUSE_LEFT) : Binding.MOUSE_LEFT;
+        this.icon = d.icon;
+        this.iconNoTint = d.iconNoTint;
         fill.setStyle(Paint.Style.FILL);
         stroke.setStyle(Paint.Style.STROKE);
         textPaint.setTextAlign(Paint.Align.CENTER);
@@ -127,7 +137,19 @@ public class ButtonElement extends ControlElement {
             c.drawRoundRect(rect, r, r, fill);
             c.drawRoundRect(rect, r, r, stroke);
         }
-        if (!text.isEmpty()) {
+        android.graphics.Bitmap iconBmp = IconPacks.loadButtonIcon(icon);
+        if (iconBmp != null) {
+            // Fit the picture into ~60 % of the button, keeping its proportions.
+            float box = Math.min(hw, hh) * 1.2f;
+            float bw = iconBmp.getWidth(), bh = iconBmp.getHeight();
+            float k = box / Math.max(bw, bh);
+            iconRect.set(cx - bw * k / 2f, cy - bh * k / 2f, cx + bw * k / 2f, cy + bh * k / 2f);
+            int a = Math.min(255, baseA + 75);
+            iconPaint.setAlpha(a);
+            // A white picture tinted like the label; a colour pack keeps its own colours.
+            iconPaint.setColorFilter(iconNoTint ? null : WHITE_TINT);
+            c.drawBitmap(iconBmp, null, iconRect, iconPaint);
+        } else if (!text.isEmpty()) {
             textPaint.setColor(0x00FFFFFF | (Math.min(255, baseA + 75) << 24));
             float ts = Math.min(hh, hw) * 0.7f;
             textPaint.setTextSize(ts);
@@ -147,6 +169,8 @@ public class ButtonElement extends ControlElement {
         d.text = text;
         d.isToggle = isToggle;
         d.bindings = new String[]{ binding.name() };
+        d.icon = icon;
+        d.iconNoTint = iconNoTint;
         return baseDescribe(d);
     }
 
@@ -161,4 +185,10 @@ public class ButtonElement extends ControlElement {
     public void setText(String t) { this.text = t != null ? t : ""; }
     public Shape getShape() { return shape; }
     public void setShape(Shape s) { this.shape = s; }
+    /** The icon's file name in IconPacks.iconsDir(), or null when the button shows its label. */
+    public String getIcon() { return icon; }
+    public void setIcon(String fileName, boolean noTint) {
+        this.icon = (fileName == null || fileName.isEmpty()) ? null : fileName;
+        this.iconNoTint = this.icon != null && noTint;
+    }
 }

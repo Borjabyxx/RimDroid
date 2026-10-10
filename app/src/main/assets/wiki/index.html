@@ -307,10 +307,21 @@
             keyboard.</li>
         <li>Change them in the instance settings, <b>Edit on-screen controls</b>: tap an element to
             select it and drag it to move it. <b>Add</b> creates buttons bound to any key or mouse
-            action; <b>Reset</b> returns to the default layout. <b>Grid: on</b> makes buttons snap to
-            a grid so they line up evenly; <b>Grid: off</b> places them freely.</li>
+            action; <b>Reset</b> returns to the default layout. The grid button switches between
+            <b>Grid: off</b> (place buttons freely), <b>Grid: small</b> (a fine grid for exact
+            placement) and <b>Grid: large</b> (a coarse grid that lines buttons up evenly).</li>
         <li><b>Export controls layout</b> and <b>Import controls layout</b> in the side menu share
             a layout as a .json file.</li>
+        <li><b>Icons</b> puts pictures on buttons instead of their labels. <b>Put an icon pack on
+            all buttons</b> gives every button the icon of its action; a button's own panel has
+            <b>Choose icon</b> and <b>Remove icon</b>. An icon pack is a .zip of PNG pictures, white
+            on a transparent background, named after the actions: click, right_click, middle_click,
+            zoom_in, zoom_out, menu, pause, accept, speed_1 to speed_4, architect, work, schedule,
+            assign, animals, wildlife, research, quests, world, history, rotate_left, rotate_right,
+            queue, forbid, prev_colonist, next_colonist, camera_up, camera_down, camera_left,
+            camera_right, keyboard, toggle_controls. Other PNG files in the zip can be picked by hand.
+            An optional pack.json names the pack: <code>{"format": 1, "name": "My icons"}</code>;
+            add <code>"tint": false</code> for colour pictures.</li>
     </ul>
 
     <h3>Typing</h3>

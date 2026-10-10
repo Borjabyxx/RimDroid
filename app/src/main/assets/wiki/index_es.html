@@ -323,10 +323,22 @@
         <li>Cámbialos en los ajustes de la instancia, <b>Editar controles en pantalla</b>: toca un
             elemento para seleccionarlo y arrástralo para moverlo. <b>Añadir</b> crea botones
             asignados a cualquier tecla o acción del mouse; <b>Restablecer</b> vuelve al diseño
-            predeterminado. <b>Cuadrícula: sí</b> ajusta los botones a una cuadrícula para alinearlos;
-            <b>Cuadrícula: no</b> permite colocarlos libremente.</li>
+            predeterminado. El botón de cuadrícula alterna entre <b>Cuadrícula: no</b> (colocar los
+            botones libremente), <b>Cuadrícula: fina</b> (una cuadrícula densa para un ajuste exacto)
+            y <b>Cuadrícula: gruesa</b> (una cuadrícula amplia para alinearlos).</li>
         <li><b>Exportar diseño de controles</b> e <b>Importar diseño de controles</b>, en el menú
             lateral, comparten un diseño como archivo .json.</li>
+        <li><b>Iconos</b> pone imágenes en los botones en lugar de sus etiquetas. <b>Poner un paquete
+            de iconos en todos los botones</b> da a cada botón el icono de su acción; el panel de cada
+            botón tiene <b>Elegir icono</b> y <b>Quitar icono</b>. Un paquete de iconos es un .zip de
+            imágenes PNG, blancas sobre fondo transparente, con el nombre de la acción: click,
+            right_click, middle_click, zoom_in, zoom_out, menu, pause, accept, speed_1 a speed_4,
+            architect, work, schedule, assign, animals, wildlife, research, quests, world, history,
+            rotate_left, rotate_right, queue, forbid, prev_colonist, next_colonist, camera_up,
+            camera_down, camera_left, camera_right, keyboard, toggle_controls. Los demás PNG del zip se
+            pueden elegir a mano. Un pack.json opcional da el nombre:
+            <code>{"format": 1, "name": "Mis iconos"}</code>; añade <code>"tint": false</code> para
+            imágenes en color.</li>
     </ul>
 
     <h3>Escribir</h3>

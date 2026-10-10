@@ -29,6 +29,11 @@ public class ControlElementDescription {
     public boolean isToggle;        // BUTTON: hold (false) vs toggle (true)
     public float   sensitivity;     // MOUSE_STICK cursor speed (0.25..8.0)
 
+    /** BUTTON: picture shown instead of the label — a file name in IconPacks.iconsDir(), or null. */
+    public String  icon;
+    /** BUTTON: show the icon in its own colours instead of tinting it like the label. */
+    public boolean iconNoTint;
+
     public ControlElementDescription() {
         // defaults for Gson / fields missing in older JSON
         this.shape = "CIRCLE";   // circular buttons are more compact (save screen space)

@@ -43,6 +43,9 @@ public class ControlsEditorActivity extends Activity implements InputControlsVie
     public static final String EXTRA_INSTANCE_NAME = "instance_name";
 
     private InputControlsView controls;
+    // Grid button modes (stored as "grid_mode" in the controls_editor prefs).
+    private static final int GRID_OFF = 0, GRID_SMALL = 1, GRID_LARGE = 2;
+    private int gridMode = GRID_OFF;
     private ScrollView panel;
     private LinearLayout panelContainer;
     private float density;
@@ -86,17 +89,22 @@ public class ControlsEditorActivity extends Activity implements InputControlsVie
 
         ((Button) findViewById(R.id.btn_add)).setOnClickListener(v -> showAddDialog());
         ((Button) findViewById(R.id.btn_reset)).setOnClickListener(v -> showResetDialog());
+        ((Button) findViewById(R.id.btn_icons)).setOnClickListener(v -> showIconsDialog());
         ((Button) findViewById(R.id.btn_done)).setOnClickListener(v -> { controls.saveToPrefs(); finish(); });
 
-        // Grid snapping toggle: remembered across editor sessions, editor-only (no effect in game).
+        // Grid button cycles off -> small -> large -> off; remembered across editor sessions,
+        // editor-only (no effect in game). The old on/off "snap_to_grid" maps to large, the step it had.
         final android.content.SharedPreferences editorPrefs =
                 getSharedPreferences("controls_editor", MODE_PRIVATE);
         android.widget.ToggleButton grid = findViewById(R.id.btn_grid);
-        grid.setChecked(editorPrefs.getBoolean("snap_to_grid", false));
-        controls.setSnapToGrid(grid.isChecked());
-        grid.setOnCheckedChangeListener((btn, on) -> {
-            controls.setSnapToGrid(on);
-            editorPrefs.edit().putBoolean("snap_to_grid", on).apply();
+        int saved = editorPrefs.contains("grid_mode")
+                ? editorPrefs.getInt("grid_mode", GRID_OFF)
+                : (editorPrefs.getBoolean("snap_to_grid", false) ? GRID_LARGE : GRID_OFF);
+        applyGridMode(grid, saved);
+        grid.setOnClickListener(btn -> {
+            int next = (gridMode + 1) % 3;
+            applyGridMode(grid, next);
+            editorPrefs.edit().putInt("grid_mode", next).apply();
         });
 
         // Reference background: pick a screenshot to place buttons against. Editor-only helper —
@@ -116,11 +124,16 @@ public class ControlsEditorActivity extends Activity implements InputControlsVie
     }
 
     private static final int REQ_PICK_BG = 4801;
+    private static final int REQ_PICK_ICON_PACK = 4802;
     private android.widget.ImageView editorBg;
 
     @Override
     protected void onActivityResult(int requestCode, int resultCode, android.content.Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
+        if (requestCode == REQ_PICK_ICON_PACK && resultCode == RESULT_OK && data != null && data.getData() != null) {
+            importIconPack(data.getData());
+            return;
+        }
         if (requestCode == REQ_PICK_BG && resultCode == RESULT_OK && data != null && data.getData() != null) {
             try (java.io.InputStream in = getContentResolver().openInputStream(data.getData());
                  java.io.FileOutputStream out = new java.io.FileOutputStream(bgFile())) {
@@ -199,6 +212,7 @@ public class ControlsEditorActivity extends Activity implements InputControlsVie
                 controls.invalidate();
             });
             addCheckbox("Toggle (latch on/off)", b.isToggle(), b::setToggle);
+            addIconRow(b);
         } else if (el instanceof MouseStickElement) {
             MouseStickElement m = (MouseStickElement) el;
             addSlider("Sensitivity", 25, 800, Math.round(m.getSensitivity() * 100), "%",
@@ -325,6 +339,181 @@ public class ControlsEditorActivity extends Activity implements InputControlsVie
                     controls.addElement(desc);
                 })
                 .show();
+    }
+
+    // ===== icon packs (IconPacks; ported from ValDroid) =====
+
+    /** Button panel row: what the button shows, plus Choose / Remove. */
+    private void addIconRow(ButtonElement b) {
+        TextView lbl = new TextView(this);
+        lbl.setTextColor(0xFFDDE3EA);
+        lbl.setText(getString(R.string.editor_icon_label,
+                b.getIcon() != null ? b.getIcon().replaceAll("^pack_|\\.png$", "") : getString(R.string.editor_icon_none)));
+        panelContainer.addView(lbl, rowParams());
+
+        LinearLayout row = new LinearLayout(this);
+        row.setOrientation(LinearLayout.HORIZONTAL);
+        Button choose = new Button(this);
+        choose.setText(R.string.editor_icon_choose);
+        choose.setOnClickListener(v -> pickPackThen(pack -> pickIconFromPack(pack, b)));
+        Button remove = new Button(this);
+        remove.setText(R.string.editor_icon_remove);
+        remove.setEnabled(b.getIcon() != null);
+        remove.setOnClickListener(v -> { b.setIcon(null, false); controls.invalidate(); buildPanel(b); });
+        LinearLayout.LayoutParams half = new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f);
+        row.addView(choose, half);
+        row.addView(remove, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
+        LinearLayout.LayoutParams lp = rowParams();
+        lp.bottomMargin = (int) (10 * density);
+        panelContainer.addView(row, lp);
+    }
+
+    /** Toolbar "Icons": apply a pack to every button, import a pack zip, delete an imported one. */
+    private void showIconsDialog() {
+        new com.google.android.material.dialog.MaterialAlertDialogBuilder(this)
+                .setTitle(R.string.editor_icons)
+                .setItems(new String[]{
+                        getString(R.string.editor_icons_apply),
+                        getString(R.string.editor_icons_import),
+                        getString(R.string.editor_icons_delete)}, (d, which) -> {
+                    if (which == 0) {
+                        pickPackThen(pack -> {
+                            int n = com.rimdroid.input.IconPacks.apply(this, pack, controls);
+                            android.widget.Toast.makeText(this, getString(R.string.editor_icons_applied, n),
+                                    android.widget.Toast.LENGTH_SHORT).show();
+                            ControlElement sel = controls.getSelected();
+                            if (sel != null) buildPanel(sel);
+                        });
+                    } else if (which == 1) {
+                        android.content.Intent i = new android.content.Intent(android.content.Intent.ACTION_OPEN_DOCUMENT);
+                        i.addCategory(android.content.Intent.CATEGORY_OPENABLE);
+                        i.setType("*/*");
+                        i.putExtra(android.content.Intent.EXTRA_MIME_TYPES,
+                                new String[]{"application/zip", "application/x-zip-compressed", "application/octet-stream"});
+                        try { startActivityForResult(i, REQ_PICK_ICON_PACK); } catch (Throwable ignored) {}
+                    } else {
+                        deleteImportedPack();
+                    }
+                })
+                .show();
+    }
+
+    /** Lets the player pick a pack; says how to get one when there are none. */
+    private void pickPackThen(Consumer<com.rimdroid.input.IconPacks.Pack> then) {
+        final java.util.List<com.rimdroid.input.IconPacks.Pack> packs = com.rimdroid.input.IconPacks.list(this);
+        if (packs.isEmpty()) {
+            new com.google.android.material.dialog.MaterialAlertDialogBuilder(this)
+                    .setTitle(R.string.editor_icons)
+                    .setMessage(R.string.editor_icons_none_yet)
+                    .setPositiveButton(android.R.string.ok, null)
+                    .show();
+            return;
+        }
+        String[] names = new String[packs.size()];
+        for (int i = 0; i < names.length; i++) names[i] = packs.get(i).name;
+        new com.google.android.material.dialog.MaterialAlertDialogBuilder(this)
+                .setTitle(R.string.editor_icons_pick_pack)
+                .setItems(names, (d, which) -> then.accept(packs.get(which)))
+                .show();
+    }
+
+    /** A grid of the pack's pictures with their names; tapping one puts it on the button. */
+    private void pickIconFromPack(com.rimdroid.input.IconPacks.Pack pack, ButtonElement b) {
+        final java.util.List<String> icons = pack.icons;
+        android.widget.GridView grid = new android.widget.GridView(this);
+        grid.setNumColumns(android.widget.GridView.AUTO_FIT);
+        grid.setColumnWidth((int) (84 * density));
+        grid.setVerticalSpacing((int) (8 * density));
+        grid.setPadding((int) (12 * density), (int) (8 * density), (int) (12 * density), 0);
+        final androidx.appcompat.app.AlertDialog[] dlg = new androidx.appcompat.app.AlertDialog[1];
+        grid.setAdapter(new android.widget.BaseAdapter() {
+            @Override public int getCount() { return icons.size(); }
+            @Override public Object getItem(int i) { return icons.get(i); }
+            @Override public long getItemId(int i) { return i; }
+            @Override public View getView(int i, View convert, android.view.ViewGroup parent) {
+                LinearLayout cell = new LinearLayout(ControlsEditorActivity.this);
+                cell.setOrientation(LinearLayout.VERTICAL);
+                cell.setGravity(Gravity.CENTER_HORIZONTAL);
+                android.widget.ImageView img = new android.widget.ImageView(ControlsEditorActivity.this);
+                img.setImageBitmap(com.rimdroid.input.IconPacks.load(ControlsEditorActivity.this, pack, icons.get(i)));
+                // White pictures need a dark backdrop to be visible in a light dialog.
+                img.setBackgroundColor(0xFF2B2F36);
+                int pad = (int) (6 * density);
+                img.setPadding(pad, pad, pad, pad);
+                cell.addView(img, new LinearLayout.LayoutParams((int) (56 * density), (int) (56 * density)));
+                TextView t = new TextView(ControlsEditorActivity.this);
+                t.setText(icons.get(i));
+                t.setTextSize(11);
+                t.setGravity(Gravity.CENTER_HORIZONTAL);
+                cell.addView(t);
+                return cell;
+            }
+        });
+        grid.setOnItemClickListener((p, v, pos, id) -> {
+            com.rimdroid.input.IconPacks.setIcon(this, pack, icons.get(pos), b);
+            controls.invalidate();
+            buildPanel(b);
+            if (dlg[0] != null) dlg[0].dismiss();
+        });
+        dlg[0] = new com.google.android.material.dialog.MaterialAlertDialogBuilder(this)
+                .setTitle(pack.name)
+                .setView(grid)
+                .setNegativeButton(android.R.string.cancel, null)
+                .show();
+    }
+
+    private void importIconPack(android.net.Uri uri) {
+        String name = null;
+        try (android.database.Cursor c = getContentResolver().query(uri,
+                new String[]{android.provider.OpenableColumns.DISPLAY_NAME}, null, null, null)) {
+            if (c != null && c.moveToFirst()) name = c.getString(0);
+        } catch (Throwable ignored) {}
+        final String displayName = name;
+        new Thread(() -> {
+            String msg;
+            try {
+                com.rimdroid.input.IconPacks.Pack p = com.rimdroid.input.IconPacks.importZip(this, uri, displayName);
+                msg = getString(R.string.editor_icons_imported, p.name, p.icons.size());
+            } catch (Throwable t) {
+                msg = getString(R.string.editor_icons_import_failed, String.valueOf(t.getMessage()));
+            }
+            final String m = msg;
+            runOnUiThread(() -> android.widget.Toast.makeText(this, m, android.widget.Toast.LENGTH_LONG).show());
+        }, "IconPackImport").start();
+    }
+
+    private void deleteImportedPack() {
+        final java.util.List<com.rimdroid.input.IconPacks.Pack> imported = new java.util.ArrayList<>();
+        for (com.rimdroid.input.IconPacks.Pack p : com.rimdroid.input.IconPacks.list(this))
+            if (!p.builtIn) imported.add(p);
+        if (imported.isEmpty()) {
+            android.widget.Toast.makeText(this, R.string.editor_icons_no_imported, android.widget.Toast.LENGTH_SHORT).show();
+            return;
+        }
+        String[] names = new String[imported.size()];
+        for (int i = 0; i < names.length; i++) names[i] = imported.get(i).name;
+        new com.google.android.material.dialog.MaterialAlertDialogBuilder(this)
+                .setTitle(R.string.editor_icons_delete)
+                .setItems(names, (d, which) -> {
+                    // Buttons keep their icons: those were copied into control_icons/ when applied.
+                    com.rimdroid.input.IconPacks.delete(imported.get(which));
+                    android.widget.Toast.makeText(this, getString(R.string.editor_icons_deleted, names[which]),
+                            android.widget.Toast.LENGTH_SHORT).show();
+                })
+                .show();
+    }
+
+    /** Show a grid mode on the toolbar button (filled while any grid is on) and hand its step to the view. */
+    private void applyGridMode(android.widget.ToggleButton btn, int mode) {
+        gridMode = (mode == GRID_SMALL || mode == GRID_LARGE) ? mode : GRID_OFF;
+        // ToggleButton rewrites its text from textOn/textOff on every setChecked, so set both first.
+        String label = getString(gridMode == GRID_SMALL ? R.string.editor_grid_small
+                : gridMode == GRID_LARGE ? R.string.editor_grid_large : R.string.editor_grid_off);
+        btn.setTextOn(label);
+        btn.setTextOff(label);
+        btn.setChecked(gridMode != GRID_OFF);
+        controls.setGrid(gridMode == GRID_SMALL ? InputControlsView.GRID_STEP_FINE_DP
+                : gridMode == GRID_LARGE ? InputControlsView.GRID_STEP_COARSE_DP : 0f);
     }
 
     private void showResetDialog() {

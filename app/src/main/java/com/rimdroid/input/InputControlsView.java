@@ -56,8 +56,11 @@ public class InputControlsView extends View {
     // Editor grid snapping: while on, a dragged element's CENTER lands on the nearest grid node, so
     // same-size buttons line up. The step is in dp, so the grid is the same physical size on every
     // screen. The element follows the finger smoothly and snaps only when the finger lifts —
-    // snapping on every move made it jump from node to node (same fix as ValDroid).
-    private static final float GRID_STEP_DP = 24f;
+    // snapping on every move made it jump from node to node (same fix as ValDroid). Two steps to
+    // choose from in the editor: a fine one for exact placement and the original coarse one.
+    public static final float GRID_STEP_FINE_DP = 12f;
+    public static final float GRID_STEP_COARSE_DP = 24f;
+    private float gridStepDp = GRID_STEP_COARSE_DP;
     private boolean snapToGrid = false;
     private final Paint gridPaint = new Paint();
 
@@ -278,7 +281,7 @@ public class InputControlsView extends View {
     }
 
     private void drawGrid(Canvas c) {
-        float step = GRID_STEP_DP * density;
+        float step = gridStepDp * density;
         gridPaint.setColor(0x33FFFFFF);
         gridPaint.setStrokeWidth(1f);
         for (float x = step; x < getWidth(); x += step) c.drawLine(x, 0, x, getHeight(), gridPaint);
@@ -316,13 +319,18 @@ public class InputControlsView extends View {
 
     public boolean isEditMode() { return editMode; }
 
-    public void setSnapToGrid(boolean on) { snapToGrid = on; invalidate(); }
+    /** Grid step in dp, or 0 for no grid (free placement). */
+    public void setGrid(float stepDp) {
+        snapToGrid = stepDp > 0f;
+        if (snapToGrid) gridStepDp = stepDp;
+        invalidate();
+    }
 
     /** Finger lifted: land the dragged element's centre on the nearest grid node. Only after a real
      *  drag — a tap-and-hold that opens the settings panel must not nudge the element. */
     private void snapDraggedToGrid() {
         if (!snapToGrid || dragging == null || !editMoved) return;
-        float step = GRID_STEP_DP * density;
+        float step = gridStepDp * density;
         dragging.setCenterPx(Math.round(dragging.centerX() / step) * step,
                              Math.round(dragging.centerY() / step) * step);
         invalidate();
