@@ -164,6 +164,12 @@ En la nube: %2$s
     <string name="controls_import_failed">No se pudo importar el diseño: %1$s</string>
     <string name="controls_exported">Diseño de controles exportado</string>
     <string name="controls_export_failed">No se pudo exportar el diseño: %1$s</string>
+    <string name="editor_icons_remove">Quitar los iconos de todos los botones</string>
+    <string name="editor_icons_removed">Iconos quitados de %1$d botones</string>
+    <string name="icon_packs_unapply">Quitar</string>
+    <string name="icon_packs_applied_count">aplicado a %1$d botones</string>
+    <string name="icon_packs_remove_confirm">¿Quitar los iconos de «%1$s» del diseño de %2$s? Esos botones vuelven a mostrar sus etiquetas.</string>
+    <string name="icon_packs_removed">Iconos quitados de %1$d botones de %2$s</string>
     <string name="editor_icons">Iconos</string>
     <string name="editor_icons_apply">Aplicar un paquete de iconos a todos los botones</string>
     <string name="editor_icons_import">Importar un paquete de iconos (zip)…</string>

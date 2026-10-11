@@ -84,6 +84,11 @@ public class IconPacksFragment extends Fragment {
         ArrayAdapter<String> a = new ArrayAdapter<>(requireContext(), android.R.layout.simple_spinner_item, names);
         a.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
         spInstance.setAdapter(a);
+        // Apply / Remove depend on the chosen instance's layout.
+        spInstance.setOnItemSelectedListener(new android.widget.AdapterView.OnItemSelectedListener() {
+            @Override public void onItemSelected(android.widget.AdapterView<?> p, View view, int pos, long id) { refreshPacks(); }
+            @Override public void onNothingSelected(android.widget.AdapterView<?> p) {}
+        });
         refreshPacks();
     }
 
@@ -106,12 +111,15 @@ public class IconPacksFragment extends Fragment {
             packList.addView(none);
             return;
         }
+        GameInstance gi = current();
         for (IconPacks.Pack pack : packs) {
             View row = getLayoutInflater().inflate(R.layout.item_icon_pack, packList, false);
             ((TextView) row.findViewById(R.id.tv_icon_pack_name)).setText(pack.name);
-            String count = getString(R.string.icon_packs_count, pack.icons.size());
-            ((TextView) row.findViewById(R.id.tv_icon_pack_info))
-                    .setText(pack.builtIn ? count + " · " + getString(R.string.icon_packs_builtin) : count);
+            IconPacks.Status st = gi != null ? IconPacks.statusOnInstance(requireContext(), pack, gi.getName()) : null;
+            StringBuilder info = new StringBuilder(getString(R.string.icon_packs_count, pack.icons.size()));
+            if (pack.builtIn) info.append(" · ").append(getString(R.string.icon_packs_builtin));
+            if (st != null && st.applied > 0) info.append(" · ").append(getString(R.string.icon_packs_applied_count, st.applied));
+            ((TextView) row.findViewById(R.id.tv_icon_pack_info)).setText(info);
             LinearLayout preview = row.findViewById(R.id.ll_icon_pack_preview);
             for (int i = 0; i < pack.icons.size() && i < PREVIEW_ICONS; i++) {
                 Bitmap bmp = IconPacks.load(requireContext(), pack, pack.icons.get(i));
@@ -125,7 +133,14 @@ public class IconPacksFragment extends Fragment {
                 iv.setImageBitmap(bmp);
                 preview.addView(iv);
             }
-            row.findViewById(R.id.btn_icon_pack_apply).setOnClickListener(b -> confirmApply(pack));
+            // Apply is grey when it would change nothing; it lights up again when, say, a new button
+            // the pack has a picture for is added to the layout.
+            Button applyBtn = row.findViewById(R.id.btn_icon_pack_apply);
+            applyBtn.setEnabled(st != null && st.pending > 0);
+            applyBtn.setOnClickListener(b -> confirmApply(pack));
+            Button removeBtn = row.findViewById(R.id.btn_icon_pack_remove);
+            removeBtn.setEnabled(st != null && st.applied > 0);
+            removeBtn.setOnClickListener(b -> confirmRemove(pack));
             Button delete = row.findViewById(R.id.btn_icon_pack_delete);
             delete.setVisibility(pack.builtIn ? View.GONE : View.VISIBLE);
             delete.setOnClickListener(b -> new MaterialAlertDialogBuilder(requireContext())
@@ -151,10 +166,27 @@ public class IconPacksFragment extends Fragment {
                 .show();
     }
 
+    /** Takes this pack's icons off the chosen instance's layout; asked first, like Apply. */
+    private void confirmRemove(IconPacks.Pack pack) {
+        GameInstance gi = current();
+        if (gi == null) { toast(getString(R.string.no_instances)); return; }
+        new MaterialAlertDialogBuilder(requireContext())
+                .setMessage(getString(R.string.icon_packs_remove_confirm, pack.name, gi.getName()))
+                .setPositiveButton(R.string.icon_packs_unapply, (d, w) -> {
+                    int n = IconPacks.removeFromInstance(requireContext(), pack, gi.getName());
+                    if (n >= 0) toast(getString(R.string.icon_packs_removed, n, gi.getName()));
+                    else toast(getString(R.string.icon_packs_apply_failed));
+                    refreshPacks();
+                })
+                .setNegativeButton(android.R.string.cancel, null)
+                .show();
+    }
+
     private void apply(IconPacks.Pack pack, GameInstance gi) {
         int n = IconPacks.applyToInstance(requireContext(), pack, gi.getName());
         if (n > 0) toast(getString(R.string.icon_packs_applied, n, gi.getName()));
         else toast(getString(n == 0 ? R.string.icon_packs_applied_none : R.string.icon_packs_apply_failed));
+        refreshPacks();
     }
 
     private void onPackPicked(@Nullable Uri uri) {

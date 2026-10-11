@@ -161,6 +161,12 @@
     <string name="controls_import_failed">Не удалось импортировать раскладку: %1$s</string>
     <string name="controls_exported">Раскладка экспортирована</string>
     <string name="controls_export_failed">Не удалось экспортировать раскладку: %1$s</string>
+    <string name="editor_icons_remove">Убрать иконки со всех кнопок</string>
+    <string name="editor_icons_removed">Иконки убраны с %1$d кнопок</string>
+    <string name="icon_packs_unapply">Убрать</string>
+    <string name="icon_packs_applied_count">применён к %1$d кнопкам</string>
+    <string name="icon_packs_remove_confirm">Убрать иконки «%1$s» с раскладки %2$s? Эти кнопки снова покажут подписи.</string>
+    <string name="icon_packs_removed">Иконки убраны с %1$d кнопок копии %2$s</string>
     <string name="editor_icons">Иконки</string>
     <string name="editor_icons_apply">Применить пакет иконок ко всем кнопкам</string>
     <string name="editor_icons_import">Импортировать пакет иконок (zip)…</string>

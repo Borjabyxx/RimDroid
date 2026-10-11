@@ -281,6 +281,21 @@ public final class IconPacks {
         return applied;
     }
 
+    /**
+     * Takes the icons off every button of the open layout; they show their labels again (the label
+     * is kept all along). Returns how many buttons had an icon.
+     */
+    public static int removeAll(@NonNull InputControlsView view) {
+        int removed = 0;
+        for (ControlElement el : view.getElements()) {
+            if (!(el instanceof ButtonElement) || ((ButtonElement) el).getIcon() == null) continue;
+            ((ButtonElement) el).setIcon(null, false);
+            removed++;
+        }
+        view.invalidate();
+        return removed;
+    }
+
     /** Copies one pack icon into control_icons/ and shows it on the button. */
     public static boolean setIcon(@NonNull Context context, @NonNull Pack pack, @NonNull String icon,
                                   @NonNull ButtonElement button) {
@@ -290,21 +305,86 @@ public final class IconPacks {
         return true;
     }
 
-    /** Writes one pack icon into control_icons/; its file name there, or null. */
+    /** The name a layout stores for one pack icon. */
+    private static String iconFileName(Pack pack, String icon) {
+        return "pack_" + pack.id + "_" + icon + ".png";
+    }
+
+    /**
+     * Makes one pack icon available to layouts; its file name, or null. An imported pack's picture is
+     * copied into control_icons/, so a layout keeps it if the pack is deleted. A built-in pack's is not:
+     * it is read from the APK by name ({@link #loadButtonIcon}), so an app update that redraws a
+     * built-in icon shows up on every layout that uses it.
+     */
     @Nullable
     private static String copyIcon(@NonNull Context context, @NonNull Pack pack, @NonNull String icon) {
+        String fileName = iconFileName(pack, icon);
+        CACHE.remove(fileName);   // a re-imported pack may have changed the picture
+        if (pack.builtIn) return pack.icons.contains(icon) ? fileName : null;
         File dir = iconsDir();
         if (!dir.isDirectory() && !dir.mkdirs()) return null;
         Bitmap bmp = load(context, pack, icon);
         if (bmp == null) return null;
-        String fileName = "pack_" + pack.id + "_" + icon + ".png";
         try (FileOutputStream out = new FileOutputStream(new File(dir, fileName))) {
             bmp.compress(Bitmap.CompressFormat.PNG, 100, out);
         } catch (IOException e) {
             return null;
         }
-        CACHE.remove(fileName);   // a re-imported pack may have changed the picture
         return fileName;
+    }
+
+    /** An instance's saved layout, or the bundled default when it has none; null when unreadable. */
+    @Nullable
+    private static List<ControlElementDescription> readInstanceLayout(@NonNull Context context,
+                                                                      @NonNull String instanceName) {
+        String json = new com.rimdroid.InstanceSettings(instanceName).getControlsJson();
+        List<ControlElementDescription> layout = json != null ? InputControlsView.parse(json) : null;
+        if (layout != null && !layout.isEmpty()) return layout;
+        try (InputStream in = context.getAssets().open(InputControlsView.DEFAULT_ASSET)) {
+            return InputControlsView.parse(new String(readAll(in), StandardCharsets.UTF_8));
+        } catch (IOException e) {
+            return null;
+        }
+    }
+
+    private static void saveInstanceLayout(String instanceName, List<ControlElementDescription> layout) {
+        new com.rimdroid.InstanceSettings(instanceName).setControlsJson(new com.google.gson.Gson().toJson(layout));
+    }
+
+    /** The pack icon a described button should show, or null when the pack has none for its action. */
+    @Nullable
+    private static String packIconFor(@NonNull Pack pack, @NonNull ControlElementDescription d) {
+        if (!"BUTTON".equals(d.type) || d.bindings == null || d.bindings.length == 0) return null;
+        String icon = actionFor(Binding.fromName(d.bindings[0], null));
+        return (icon != null && pack.icons.contains(icon)) ? icon : null;
+    }
+
+    /** Where a pack stands on an instance's layout (the drawer's Button icons screen). */
+    public static final class Status {
+        /** Buttons showing an icon of this pack. */
+        public final int applied;
+        /** Buttons Apply would change: the pack has their action's icon and they show something else. */
+        public final int pending;
+
+        Status(int applied, int pending) {
+            this.applied = applied;
+            this.pending = pending;
+        }
+    }
+
+    @NonNull
+    public static Status statusOnInstance(@NonNull Context context, @NonNull Pack pack, @NonNull String instanceName) {
+        List<ControlElementDescription> layout = readInstanceLayout(context, instanceName);
+        if (layout == null) return new Status(0, 0);
+        String prefix = "pack_" + pack.id + "_";
+        int applied = 0, pending = 0;
+        for (ControlElementDescription d : layout) {
+            if (!"BUTTON".equals(d.type)) continue;
+            if (d.icon != null && d.icon.startsWith(prefix)) applied++;
+            String icon = packIconFor(pack, d);
+            if (icon != null && (!iconFileName(pack, icon).equals(d.icon) || d.iconNoTint == pack.tint)) pending++;
+        }
+        return new Status(applied, pending);
     }
 
     /**
@@ -313,30 +393,39 @@ public final class IconPacks {
      * Returns how many buttons got an icon, or -1 when the layout could not be read.
      */
     public static int applyToInstance(@NonNull Context context, @NonNull Pack pack, @NonNull String instanceName) {
-        com.rimdroid.InstanceSettings settings = new com.rimdroid.InstanceSettings(instanceName);
-        String json = settings.getControlsJson();
-        List<ControlElementDescription> layout = json != null ? InputControlsView.parse(json) : null;
-        if (layout == null || layout.isEmpty()) {
-            try (InputStream in = context.getAssets().open(InputControlsView.DEFAULT_ASSET)) {
-                layout = InputControlsView.parse(new String(readAll(in), StandardCharsets.UTF_8));
-            } catch (IOException e) {
-                return -1;
-            }
-        }
+        List<ControlElementDescription> layout = readInstanceLayout(context, instanceName);
         if (layout == null) return -1;
         int applied = 0;
         for (ControlElementDescription d : layout) {
-            if (!"BUTTON".equals(d.type) || d.bindings == null || d.bindings.length == 0) continue;
-            String icon = actionFor(Binding.fromName(d.bindings[0], null));
-            if (icon == null || !pack.icons.contains(icon)) continue;
+            String icon = packIconFor(pack, d);
+            if (icon == null) continue;
             String fileName = copyIcon(context, pack, icon);
             if (fileName == null) continue;
             d.icon = fileName;
             d.iconNoTint = !pack.tint;
             applied++;
         }
-        if (applied > 0) settings.setControlsJson(new com.google.gson.Gson().toJson(layout));
+        if (applied > 0) saveInstanceLayout(instanceName, layout);
         return applied;
+    }
+
+    /**
+     * Takes this pack's icons off an instance's layout; icons from other packs or picked by hand stay.
+     * Returns how many buttons lost an icon, or -1 when the layout could not be read.
+     */
+    public static int removeFromInstance(@NonNull Context context, @NonNull Pack pack, @NonNull String instanceName) {
+        List<ControlElementDescription> layout = readInstanceLayout(context, instanceName);
+        if (layout == null) return -1;
+        String prefix = "pack_" + pack.id + "_";
+        int removed = 0;
+        for (ControlElementDescription d : layout) {
+            if (!"BUTTON".equals(d.type) || d.icon == null || !d.icon.startsWith(prefix)) continue;
+            d.icon = null;
+            d.iconNoTint = false;
+            removed++;
+        }
+        if (removed > 0) saveInstanceLayout(instanceName, layout);
+        return removed;
     }
 
     // ---- pictures -------------------------------------------------------------------------
@@ -345,18 +434,20 @@ public final class IconPacks {
     private static final LruCache<String, Bitmap> CACHE = new LruCache<>(64);
 
     /**
-     * A button icon by its file name in control_icons/, or null when it is missing. A built-in pack's
-     * icon ("pack_&lt;id&gt;_&lt;icon&gt;.png") that was never copied there — the bundled default
-     * layout ships with such names — is read straight from the APK's assets.
+     * A button icon by its file name, or null when it is missing. A built-in pack's icon
+     * ("pack_&lt;id&gt;_&lt;icon&gt;.png") is read straight from the APK's assets, so it always shows the
+     * current picture; anything else comes from control_icons/.
      */
     @Nullable
     public static Bitmap loadButtonIcon(@Nullable String fileName) {
         if (fileName == null || fileName.isEmpty()) return null;
         Bitmap b = CACHE.get(fileName);
         if (b != null) return b;
-        File f = new File(iconsDir(), new File(fileName).getName());
-        if (f.isFile()) b = BitmapFactory.decodeFile(f.getAbsolutePath());
-        else b = loadBuiltInByFileName(fileName);
+        b = loadBuiltInByFileName(fileName);
+        if (b == null) {
+            File f = new File(iconsDir(), new File(fileName).getName());
+            if (f.isFile()) b = BitmapFactory.decodeFile(f.getAbsolutePath());
+        }
         if (b != null) CACHE.put(fileName, b);
         return b;
     }

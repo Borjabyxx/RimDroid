@@ -49,6 +49,14 @@
                 android:text="@string/icon_packs_delete" />
 
             <Button
+                android:id="@+id/btn_icon_pack_remove"
+                style="@style/Widget.Material3.Button.OutlinedButton"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginEnd="8dp"
+                android:text="@string/icon_packs_unapply" />
+
+            <Button
                 android:id="@+id/btn_icon_pack_apply"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"

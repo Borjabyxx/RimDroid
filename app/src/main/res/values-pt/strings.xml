@@ -166,6 +166,12 @@ Na nuvem: %2$s
     <string name="controls_import_failed">Não foi possível importar o layout: %1$s</string>
     <string name="controls_exported">Layout de controles exportado</string>
     <string name="controls_export_failed">Não foi possível exportar o layout: %1$s</string>
+    <string name="editor_icons_remove">Remover os ícones de todos os botões</string>
+    <string name="editor_icons_removed">Ícones removidos de %1$d botões</string>
+    <string name="icon_packs_unapply">Remover</string>
+    <string name="icon_packs_applied_count">aplicado a %1$d botões</string>
+    <string name="icon_packs_remove_confirm">Remover os ícones de «%1$s» do layout de %2$s? Esses botões voltam a mostrar os rótulos.</string>
+    <string name="icon_packs_removed">Ícones removidos de %1$d botões de %2$s</string>
     <string name="editor_icons">Ícones</string>
     <string name="editor_icons_apply">Aplicar um pacote de ícones a todos os botões</string>
     <string name="editor_icons_import">Importar um pacote de ícones (zip)…</string>

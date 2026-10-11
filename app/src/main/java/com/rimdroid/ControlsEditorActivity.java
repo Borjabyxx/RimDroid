@@ -374,8 +374,18 @@ public class ControlsEditorActivity extends Activity implements InputControlsVie
                 .setTitle(R.string.editor_icons)
                 .setItems(new String[]{
                         getString(R.string.editor_icons_apply),
+                        getString(R.string.editor_icons_remove),
                         getString(R.string.editor_icons_import),
                         getString(R.string.editor_icons_delete)}, (d, which) -> {
+                    if (which == 1) {
+                        int n = com.rimdroid.input.IconPacks.removeAll(controls);
+                        android.widget.Toast.makeText(this, getString(R.string.editor_icons_removed, n),
+                                android.widget.Toast.LENGTH_SHORT).show();
+                        ControlElement sel = controls.getSelected();
+                        if (sel != null) buildPanel(sel);
+                        return;
+                    }
+                    if (which > 1) which--;   // the items below keep their old indices
                     if (which == 0) {
                         pickPackThen(pack -> {
                             int n = com.rimdroid.input.IconPacks.apply(this, pack, controls);
