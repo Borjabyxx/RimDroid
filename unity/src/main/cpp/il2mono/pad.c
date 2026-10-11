@@ -4,6 +4,7 @@
 // See tools/unity-native/bridge/*.cs.
 #include <dlfcn.h>
 #include <jni.h>
+#include <math.h>
 #include <pthread.h>
 #include <stdatomic.h>
 #include <stdbool.h>
@@ -53,6 +54,30 @@ typedef struct
 // order, changing any one key or button at most once per update: the rest wait for the next take.
 static RimDroidKbmState g_kbm;
 static pthread_mutex_t g_kbm_lock = PTHREAD_MUTEX_INITIALIZER;
+static bool g_scroll_ready; // Protected by g_kbm_lock; set by the managed scroll pump.
+
+// RimWorld uses legacy Android input for keys/buttons, so it only takes the wheel here. Coordinates
+// are normalized to the player's viewport, top-left origin, and sampled with the notches.
+static float scroll_take(float* x, float* y)
+{
+    pthread_mutex_lock(&g_kbm_lock);
+    float scroll = g_kbm.scroll;
+    *x = g_kbm.mouse_x;
+    *y = g_kbm.mouse_y;
+    g_kbm.scroll = 0;
+    pthread_mutex_unlock(&g_kbm_lock);
+    return scroll;
+}
+
+static void scroll_set_ready(uint8_t ready)
+{
+    pthread_mutex_lock(&g_kbm_lock);
+    if (g_scroll_ready != (ready != 0))
+        LOGI("RimDroid scroll bridge: %s", ready ? "ready" : "suspended");
+    g_scroll_ready = ready != 0;
+    g_kbm.scroll = 0;
+    pthread_mutex_unlock(&g_kbm_lock);
+}
 
 typedef struct
 {
@@ -173,6 +198,8 @@ void il2mono_register_input_icalls(void)
     p_mono_add_internal_call("RimDroid.VirtualPad::GetStatePointer", (const void*)pad_get_state_pointer);
     p_mono_add_internal_call("RimDroid.VirtualKeyboardMouse::Take", (const void*)kbm_take);
     p_mono_add_internal_call("RimDroid.Bridge::GetGameStatePointer", (const void*)game_get_state_pointer);
+    p_mono_add_internal_call("RimDroid.Bridge::TakeScroll", (const void*)scroll_take);
+    p_mono_add_internal_call("RimDroid.Bridge::SetScrollReady", (const void*)scroll_set_ready);
 }
 
 // ------------------------------------------------------------------ JNI (com.rimdroid.game.NativeInput)
@@ -229,12 +256,23 @@ IL2MONO_API void JNICALL Java_com_rimdroid_game_NativeInput_nativeMouseDelta(JNI
     pthread_mutex_unlock(&g_kbm_lock);
 }
 
-IL2MONO_API void JNICALL Java_com_rimdroid_game_NativeInput_nativeMouseScroll(JNIEnv* env, jclass cls, jfloat notches)
+// False means the bridge has not started (or has stopped): the overlay can use its zoom-key fallback.
+IL2MONO_API jboolean JNICALL Java_com_rimdroid_game_NativeInput_nativeMouseScroll(
+    JNIEnv* env, jclass cls, jfloat x, jfloat y, jfloat notches)
 {
+    if (!isfinite(x) || !isfinite(y) || !isfinite(notches)) return JNI_TRUE;
     pthread_mutex_lock(&g_kbm_lock);
-    g_kbm.scroll += notches;
-    g_kbm.sequence++;
+    bool ready = g_scroll_ready;
+    if (ready)
+    {
+        g_kbm.mouse_x = x < 0.f ? 0.f : x > 1.f ? 1.f : x;
+        g_kbm.mouse_y = y < 0.f ? 0.f : y > 1.f ? 1.f : y;
+        g_kbm.scroll += notches;
+        g_kbm.sequence++;
+        if (kbm_diag()) LOGI("scroll: %.3f at %.3f,%.3f", notches, x, y);
+    }
     pthread_mutex_unlock(&g_kbm_lock);
+    return ready ? JNI_TRUE : JNI_FALSE;
 }
 
 IL2MONO_API jlong JNICALL Java_com_rimdroid_game_NativeInput_nativeGetFrameCount(JNIEnv* env, jclass cls)
@@ -242,7 +280,7 @@ IL2MONO_API jlong JNICALL Java_com_rimdroid_game_NativeInput_nativeGetFrameCount
     uint32_t bridged = atomic_load_explicit(&g_game.frames, memory_order_relaxed);
     if (bridged)
         return (jlong)bridged;
-    // Without a managed bridge (RimWorld has none), the frames vkshim saw presented.
+    // The scroll-only bridge does not publish a frame counter; use frames presented by vkshim.
     static uint64_t (*vkshim_frames)(void);
     if (!vkshim_frames)
     {

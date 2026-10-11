@@ -8,7 +8,7 @@
 # usage: prepare_unity_module.sh <android-support.pkg>
 #   <android-support.pkg>   UnitySetup-Android-Support-for-Editor-2022.3.35f1.pkg (macOS package,
 #                           https://download.unity3d.com/download_unity/011206c7a712/MacEditorTargetInstaller/)
-# environment: PYTHON, TAR optional.
+# environment: MONO_API, CSC (or CSC_DLL and DOTNET) for build_bridge.sh; PYTHON, TAR optional.
 #
 # Result:
 #   unity/prepared/jniLibs/arm64-v8a/libunity.so   full (unstripped) engine, build-target check patched
@@ -24,9 +24,7 @@
 #                                                  il2mono runs Mono)
 #   unity/prepared/assets/rimdroid_native/Managed/  Android builds that replace the game's Linux copies:
 #                                                  UnityEngine*.dll (Unity's Android Mono variation).
-#                                                  No C# bridge yet: ValDroid's feeds Valheim through the
-#                                                  Input System, which RimWorld does not use (legacy input
-#                                                  + IMGUI); RimDroid's input path is still to be built.
+#                                                  RimDroidBridge.dll handles legacy IMGUI wheel input.
 set -e
 USAGE="usage: prepare_unity_module.sh <android-support.pkg>"
 PKG=${1:?$USAGE}
@@ -34,6 +32,15 @@ HERE=$(cd "$(dirname "$0")" && pwd)
 ROOT=$(cd "$HERE/../.." && pwd)
 OUT=$ROOT/unity/prepared
 PY=${PYTHON:-python}
+# Fail before replacing a previously prepared module if the bridge toolchain is not configured.
+test -f "${MONO_API:-$HERE/monoref/4.5}/mscorlib.dll" || {
+    echo "set MONO_API to Mono's framework reference directory (see bridge/README.md)" >&2; exit 1;
+}
+if [ -n "${CSC_DLL:-}" ]; then
+    test -f "$CSC_DLL" && command -v "${DOTNET:-dotnet}" >/dev/null || exit 1
+else
+    command -v "${CSC:-csc}" >/dev/null || { echo "set CSC to csc or mono-csc" >&2; exit 1; }
+fi
 # The package payload is a gzip'ed cpio archive: needs bsdtar (Windows' own tar.exe is bsdtar;
 # GNU tar from Git Bash cannot read cpio).
 if [ -z "$TAR" ]; then
@@ -86,4 +93,5 @@ printf '%s' "0b7e5a1c-3d92-4f6e-8a41-c5d2e9f07b63" > "$DATA/unity_app_guid"
 MANAGED="$OUT/assets/rimdroid_native/Managed"
 mkdir -p "$MANAGED"
 cp "$WORK/Variations/mono/Managed/"UnityEngine*.dll "$MANAGED/"
+sh "$HERE/build_bridge.sh" "$MANAGED" "$MANAGED"
 echo "prepared $OUT ($(ls "$MANAGED" | wc -l) managed overrides)"

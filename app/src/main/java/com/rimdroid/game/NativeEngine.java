@@ -8,6 +8,9 @@ import android.util.Log;
 
 import com.rimdroid.PrefsXml;
 
+import org.json.JSONArray;
+import org.json.JSONObject;
+
 import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileInputStream;
@@ -130,7 +133,7 @@ public final class NativeEngine {
         // mobile format itself (0.35 GB less graphics memory on the S25, 2026-10-11); the BC shader
         // trouble that keeps it off under box64 does not exist here.
         PrefsXml.pinTextureCompression(new File(userData, "Config"), true);
-        // The map zoom keys the overlay presses for the pinch and the zoom buttons (PrefsXml).
+        // Fallback while the managed scroll bridge has not reported ready (or if it fails to start).
         PrefsXml.pinZoomKeys(new File(userData, "Config"));
         addUserEnvironment(is, env);
         Log.i(TAG, "native engine environment: " + launchSummary(env));
@@ -300,6 +303,9 @@ public final class NativeEngine {
         File tmp = new File(workDir, "data.zip.tmp");
         AssetManager assets = context.getAssets();
         try (ZipOutputStream zip = new ZipOutputStream(new FileOutputStream(tmp))) {
+            if (!new File(dataDir, "ScriptingAssemblies.json").isFile()
+                    || !new File(dataDir, "RuntimeInitializeOnLoads.json").isFile())
+                throw new IOException("native engine requires the game's Unity assembly manifests");
             List<String> playerFiles = new ArrayList<>();
             listAssets(assets, PLAYER_ASSETS, "", playerFiles);
             for (String rel : playerFiles) {
@@ -311,7 +317,16 @@ public final class NativeEngine {
             }
             for (String rel : gameFiles) {
                 if (isExcluded(rel)) continue;
-                putStoredFile(zip, "assets/bin/Data/" + rel, new File(dataDir, rel));
+                File file = new File(dataDir, rel);
+                if (rel.equals("ScriptingAssemblies.json"))
+                    putStored(zip, "assets/bin/Data/" + rel, addBridgeAssembly(readFile(file)));
+                else if (rel.equals("RuntimeInitializeOnLoads.json"))
+                    putStored(zip, "assets/bin/Data/" + rel, addBridgeInitializer(readFile(file)));
+                else
+                    putStoredFile(zip, "assets/bin/Data/" + rel, file);
+            }
+            try (InputStream in = assets.open(MANAGED_OVERRIDES_ASSETS + "/RimDroidBridge.dll")) {
+                putStored(zip, "assets/bin/Data/Managed/RimDroidBridge.dll", readAll(in));
             }
         }
         if (archive.exists() && !archive.delete()) throw new IOException("cannot replace " + archive);
@@ -319,6 +334,47 @@ public final class NativeEngine {
         writeStamp(stampFile, stamp);
         Log.i(TAG, "built " + archive + " (" + archive.length() / (1024 * 1024) + " MB)");
         return archive;
+    }
+
+    // Modify only the generated archive; the player's original manifests and game DLLs stay intact.
+    static byte[] addBridgeAssembly(byte[] json) throws IOException {
+        try {
+            JSONObject root = new JSONObject(new String(json, StandardCharsets.UTF_8));
+            JSONArray names = root.getJSONArray("names"), types = root.getJSONArray("types");
+            if (names.length() != types.length()) throw new IOException("names/types length mismatch");
+            for (int i = 0; i < names.length(); i++)
+                if ("RimDroidBridge.dll".equals(names.getString(i))) return json;
+            names.put("RimDroidBridge.dll");
+            types.put(16);
+            return root.toString().getBytes(StandardCharsets.UTF_8);
+        } catch (Exception e) {
+            throw new IOException("ScriptingAssemblies.json: " + e.getMessage(), e);
+        }
+    }
+
+    static byte[] addBridgeInitializer(byte[] json) throws IOException {
+        try {
+            JSONObject root = new JSONObject(new String(json, StandardCharsets.UTF_8));
+            JSONArray list = root.getJSONArray("root");
+            for (int i = 0; i < list.length(); i++) {
+                JSONObject item = list.getJSONObject(i);
+                if ("RimDroidBridge".equals(item.optString("assemblyName"))
+                        && "RimDroid".equals(item.optString("nameSpace"))
+                        && "Bridge".equals(item.optString("className"))
+                        && "Initialize".equals(item.optString("methodName"))) return json;
+            }
+            JSONObject entry = new JSONObject();
+            entry.put("assemblyName", "RimDroidBridge");
+            entry.put("nameSpace", "RimDroid");
+            entry.put("className", "Bridge");
+            entry.put("methodName", "Initialize");
+            entry.put("loadTypes", 1); // BeforeSceneLoad
+            entry.put("isUnityClass", false);
+            list.put(entry);
+            return root.toString().getBytes(StandardCharsets.UTF_8);
+        } catch (Exception e) {
+            throw new IOException("RuntimeInitializeOnLoads.json: " + e.getMessage(), e);
+        }
     }
 
     /**
