@@ -296,8 +296,8 @@ In the cloud: %2$s
     <string name="download_dlc_note">Pick the DLC your account owns. Each downloads as a portable .zip into /Download/RimDroid — import it into any instance from the menu. (Unowned DLC are skipped.)</string>
     <string name="download_dlc_start">Download selected DLC</string>
     <string name="download_install_content">Install a mod / DLC into an instance</string>
-    <string name="download_mods_note">Download Workshop mods by ID (the number in the workshop URL: …/sharedfiles/filedetails/?id=NUMBER). No Steam login needed. Several IDs can be space-separated. Each is saved as a .zip in /Download/RimDroid.</string>
-    <string name="download_mods_hint">Workshop ID(s) — space-separated</string>
+    <string name="download_mods_note">Download Workshop mods by ID or link (…/sharedfiles/filedetails/?id=NUMBER). No Steam login needed. Several IDs can be space-separated. A collection link downloads all of its mods, in the collection\'s order. Each mod is saved as a .zip in /Download/RimDroid.</string>
+    <string name="download_mods_hint">Workshop IDs or links — mods or a collection</string>
     <string name="download_mods_hint_single">Workshop ID</string>
     <string name="download_mods_start">Download mods</string>
     <string name="download_mods_login_head">Direct download (no login)</string>

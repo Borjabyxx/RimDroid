@@ -220,14 +220,11 @@ public class DownloadFragment extends Fragment implements SteamDownloadState.Vie
     //      RimWorld. Items that require ownership fall back to the browser/ggntw option below. ----
     private void startMods() {
         if (SteamDownloadState.get().isDownloading()) return;
-        List<Long> ids = new ArrayList<>();
-        for (String tok : text(etModsIds).split("[\\s,]+")) {
-            if (tok.isEmpty()) continue;
-            try { ids.add(Long.parseLong(tok)); }
-            catch (NumberFormatException ignored) { /* skip non-numeric */ }
-        }
+        // Numbers, Workshop links (…?id=NUMBER) of mods or of collections: a collection is unfolded
+        // into its mods by the downloader (SteamAnonModDownloader.expandCollections).
+        List<Long> ids = SteamAnonModDownloader.parseWorkshopIds(text(etModsIds));
         if (ids.isEmpty()) {
-            Toast.makeText(requireContext(), "Enter a Workshop ID (the number from the URL)", Toast.LENGTH_SHORT).show();
+            Toast.makeText(requireContext(), "Enter a Workshop ID or link (mod or collection)", Toast.LENGTH_SHORT).show();
             return;
         }
 

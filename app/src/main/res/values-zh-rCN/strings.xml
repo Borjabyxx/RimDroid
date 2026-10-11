@@ -277,8 +277,8 @@
     <string name="download_dlc_note">勾选你的账号拥有的 DLC。每个 DLC 会作为独立的 .zip 下载到 /Download/RimDroid——可从菜单导入到任意实例。（未拥有的 DLC 会被跳过。）</string>
     <string name="download_dlc_start">下载所选 DLC</string>
     <string name="download_install_content">把模组／DLC 安装到实例</string>
-    <string name="download_mods_note">按 ID 下载创意工坊模组（工坊链接里的数字：…/sharedfiles/filedetails/?id=数字）。不需要登录 Steam。多个 ID 用空格分隔。每个模组保存为 /Download/RimDroid 里的 .zip。</string>
-    <string name="download_mods_hint">创意工坊 ID——用空格分隔</string>
+    <string name="download_mods_note">按 ID 或链接下载创意工坊模组（…/sharedfiles/filedetails/?id=数字）。不需要登录 Steam。多个 ID 用空格分隔。合集链接会按合集顺序下载其中全部模组。每个模组保存为 /Download/RimDroid 里的 .zip。</string>
+    <string name="download_mods_hint">创意工坊 ID 或链接——模组或合集</string>
     <string name="download_mods_hint_single">创意工坊 ID</string>
     <string name="download_mods_start">下载模组</string>
     <string name="download_mods_login_head">直接下载（无需登录）</string>

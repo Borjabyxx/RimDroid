@@ -114,8 +114,29 @@ public class SteamAnonModDownloader implements Runnable, Cancellable {
         boolean ok;
     }
 
-    private final List<Long> workshopIds;
+    private List<Long> workshopIds;   // as entered; collections are unfolded into it on start
     private final Listener listener;
+
+    /**
+     * Workshop IDs from what the player typed or pasted: bare numbers, and links of mods or
+     * collections (…/filedetails/?id=NUMBER, with or without more parameters), separated by spaces,
+     * commas or line breaks. Anything else is skipped.
+     */
+    public static List<Long> parseWorkshopIds(String text) {
+        List<Long> ids = new java.util.ArrayList<>();
+        if (text == null) return ids;
+        java.util.regex.Pattern link = java.util.regex.Pattern.compile("[?&]id=(\\d+)");
+        for (String tok : text.trim().split("[\\s,]+")) {
+            if (tok.isEmpty()) continue;
+            java.util.regex.Matcher m = link.matcher(tok);
+            String number = m.find() ? m.group(1) : tok;
+            try {
+                long id = Long.parseLong(number);
+                if (!ids.contains(id)) ids.add(id);
+            } catch (NumberFormatException ignored) { /* not a number or a link */ }
+        }
+        return ids;
+    }
 
     private SteamClient steamClient;
     private CallbackManager manager;
@@ -231,32 +252,21 @@ public class SteamAnonModDownloader implements Runnable, Cancellable {
                 done("Cannot create downloads folder: " + downloadsDir + " (grant All-files access?)");
                 return;
             }
+            workshopIds = expandCollections(workshopIds);
+            // Two passes: an item that fails (a CDN node answering 503 for one chunk, a dropped
+            // connection) is tried once more after the others, so one bad moment does not cost a
+            // whole collection. Finished zips are kept either way.
+            List<Long> failed = new java.util.ArrayList<>();
             for (Long id : workshopIds) {
                 if (!running) { progress("Aborted (disconnected)."); break; }
-                progress("=== Workshop item " + id + " (anonymous) ===");
-                File work = new File(tmpRoot, String.valueOf(id));
-                deleteRecursive(work);
-                if (!work.mkdirs()) { progress("✗ " + id + ": cannot create work dir"); skipped++; continue; }
-
-                try {
-                    if (downloadOne(cdn, id, work) && containsAboutXml(work)) {
-                        // Informative name: "<Mod Title>_<id>.zip" (id kept for uniqueness/traceability).
-                        File zip = new File(downloadsDir, sanitizeFileName(lastTitle) + "_" + id + ".zip");
-                        ZipUtil.zipDir(work, zip);
-                        progress("✓ " + id + " → " + zip.getAbsolutePath());
-                        ok++;
-                    } else {
-                        progress("✗ " + id + " — nothing usable downloaded "
-                                + "(if it needs ownership, use the browser/ggntw option).");
-                        skipped++;
-                    }
-                } catch (Throwable t) {
-                    Log.e(TAG, "item " + id + " failed", t);
-                    progress("✗ " + id + " — " + describe(t)
-                            + " (if it needs ownership, use the browser/ggntw option).");
-                    skipped++;
+                if (downloadItem(cdn, id, tmpRoot, downloadsDir)) ok++; else failed.add(id);
+            }
+            if (running && !failed.isEmpty()) {
+                progress("=== Retrying " + failed.size() + " item(s) that failed ===");
+                for (Long id : failed) {
+                    if (!running) { progress("Aborted (disconnected)."); break; }
+                    if (downloadItem(cdn, id, tmpRoot, downloadsDir)) ok++; else skipped++;
                 }
-                deleteRecursive(work);
             }
             done("Mods done: " + ok + " downloaded, " + skipped + " skipped. Saved to " + downloadsDir);
         } catch (Throwable t) {
@@ -265,6 +275,107 @@ public class SteamAnonModDownloader implements Runnable, Cancellable {
         } finally {
             running = false;
             try { steamUser.logOff(); } catch (Throwable ignored) {}
+        }
+    }
+
+    /** One item into its zip in {@code downloadsDir}; false when nothing usable came of it. */
+    private boolean downloadItem(Client cdn, long id, File tmpRoot, File downloadsDir) {
+        progress("=== Workshop item " + id + " (anonymous) ===");
+        File work = new File(tmpRoot, String.valueOf(id));
+        deleteRecursive(work);
+        if (!work.mkdirs()) { progress("✗ " + id + ": cannot create work dir"); return false; }
+        boolean ok = false;
+        try {
+            if (downloadOne(cdn, id, work) && containsAboutXml(work)) {
+                // Informative name: "<Mod Title>_<id>.zip" (id kept for uniqueness/traceability).
+                File zip = new File(downloadsDir, sanitizeFileName(lastTitle) + "_" + id + ".zip");
+                ZipUtil.zipDir(work, zip);
+                progress("✓ " + id + " → " + zip.getAbsolutePath());
+                ok = true;
+            } else {
+                progress("✗ " + id + " — nothing usable downloaded "
+                        + "(if it needs ownership, use the browser/ggntw option).");
+            }
+        } catch (Throwable t) {
+            Log.e(TAG, "item " + id + " failed", t);
+            progress("✗ " + id + " — " + describe(t)
+                    + " (if it needs ownership, use the browser/ggntw option).");
+        }
+        deleteRecursive(work);
+        return ok;
+    }
+
+    /**
+     * Collections among the IDs become their mods, in the collection's order (Steam's public
+     * GetCollectionDetails: no login, no key). A mod ID comes back unchanged; a mod listed twice,
+     * once. A collection that cannot be read stays as it is and fails like any other item.
+     */
+    private List<Long> expandCollections(List<Long> ids) {
+        List<Long> out = new java.util.ArrayList<>();
+        for (Long id : ids) {
+            List<Long> children;
+            try {
+                children = collectionChildren(id);
+            } catch (Exception e) {
+                Log.w(TAG, "collection check for " + id + " failed: " + describe(e));
+                children = Collections.emptyList();
+            }
+            if (children.isEmpty()) {
+                if (!out.contains(id)) out.add(id);
+                continue;
+            }
+            String title;
+            try { title = resolvePublishedFile(id).title; } catch (Exception e) { title = "(collection)"; }
+            progress("Collection '" + title + "' (" + id + "): " + children.size() + " mods");
+            for (Long child : children) if (!out.contains(child)) out.add(child);
+        }
+        return out;
+    }
+
+    /** The mods of a collection in order, or an empty list for anything that is not a collection. */
+    private static List<Long> collectionChildren(long id) throws Exception {
+        URL url = new URL("https://api.steampowered.com/ISteamRemoteStorage/GetCollectionDetails/v1/");
+        HttpURLConnection c = (HttpURLConnection) url.openConnection();
+        try {
+            c.setRequestMethod("POST");
+            c.setDoOutput(true);
+            c.setConnectTimeout(20000);
+            c.setReadTimeout(20000);
+            c.setRequestProperty("Content-Type", "application/x-www-form-urlencoded");
+            String body = "collectioncount=1&publishedfileids%5B0%5D=" + id;   // publishedfileids[0]=id
+            try (OutputStream os = c.getOutputStream()) {
+                os.write(body.getBytes(StandardCharsets.UTF_8));
+            }
+            int code = c.getResponseCode();
+            InputStream in = code >= 200 && code < 300 ? c.getInputStream() : c.getErrorStream();
+            StringBuilder sb = new StringBuilder();
+            if (in != null) {
+                try (BufferedReader r = new BufferedReader(new InputStreamReader(in, StandardCharsets.UTF_8))) {
+                    String line;
+                    while ((line = r.readLine()) != null) sb.append(line);
+                }
+            }
+            List<Long> children = new java.util.ArrayList<>();
+            JSONObject resp = new JSONObject(sb.toString()).optJSONObject("response");
+            JSONArray details = resp != null ? resp.optJSONArray("collectiondetails") : null;
+            if (details == null || details.length() == 0) return children;
+            JSONObject d = details.getJSONObject(0);
+            if (d.optInt("result", 0) != 1) return children;
+            JSONArray arr = d.optJSONArray("children");
+            if (arr == null) return children;
+            // sortorder is the author's order; the array normally comes that way, but make sure.
+            java.util.TreeMap<Integer, Long> ordered = new java.util.TreeMap<>();
+            for (int i = 0; i < arr.length(); i++) {
+                JSONObject ch = arr.getJSONObject(i);
+                if (ch.optInt("filetype", 0) != 0) continue;   // 0 = an item; a nested collection is skipped
+                try {
+                    ordered.put(ch.optInt("sortorder", i), Long.parseLong(ch.optString("publishedfileid", "")));
+                } catch (NumberFormatException ignored) {}
+            }
+            children.addAll(ordered.values());
+            return children;
+        } finally {
+            c.disconnect();
         }
     }
 
@@ -328,10 +439,8 @@ public class SteamAnonModDownloader implements Runnable, Cancellable {
         progress("manifest OK: " + files.size() + " entries, "
                 + (totalBytes / (1024 * 1024)) + " MB — downloading...");
 
-        // CDN edge nodes throw transient 503s under load; rotate across the server list and retry per chunk.
-        int serverIdx = Math.max(firstGood, 0);
-        long doneBytes = 0;
-        int lastPct = -1;
+        // Files first: created at their full size, so chunks can land in any order.
+        List<ChunkJob> jobs = new java.util.ArrayList<>();
         for (FileData f : files) {
             if (!running) return false;
             String rel = sanitizeRel(f.getFileName());
@@ -345,57 +454,103 @@ public class SteamAnonModDownloader implements Runnable, Cancellable {
             File parent = out.getParentFile();
             if (parent != null) //noinspection ResultOfMethodCallIgnored
                 parent.mkdirs();
-
             try (RandomAccessFile raf = new RandomAccessFile(out, "rw")) {
-                if (f.getTotalSize() > 0) raf.setLength(f.getTotalSize());
-                for (ChunkData chunk : f.getChunks()) {
-                    if (!running) return false;
-                    // Buffer must be >= compressedLength (Future precondition); the decompressor writes
-                    // uncompressedLength. Tiny/incompressible chunks can store larger than raw → take max.
-                    byte[] dest = new byte[Math.max(chunk.getCompressedLength(), chunk.getUncompressedLength())];
-                    int written = -1;
-                    Exception chunkErr = null;
-                    int tries = Math.min(Math.max(servers.size(), 4), 8);
-                    for (int t = 0; t < tries && written < 0; t++) {
-                        Server s = servers.get(serverIdx % servers.size());
-                        try {
-                            written = cdn.downloadDepotChunkFuture(depot, chunk, s, dest, depotKey, null,
-                                    cdnTokenFor(content, appId, depot, s, tokenCache)).get(180, TimeUnit.SECONDS);
-                        } catch (Exception e) {
-                            chunkErr = e;
-                            Log.w(TAG, "chunk via " + s.getHost() + " failed (try " + (t + 1) + "): " + describe(e));
-                            serverIdx++;                 // rotate to the next CDN server
-                            Thread.sleep(400);
-                        }
-                    }
-                    if (written < 0) {
-                        throw chunkErr != null ? chunkErr : new java.io.IOException("chunk download failed");
-                    }
-                    raf.seek(chunk.getOffset());
-                    raf.write(dest, 0, written);
-                    doneBytes += written;
-                    int pct = totalBytes > 0 ? (int) (doneBytes * 100 / totalBytes) : 0;
-                    if (pct != lastPct) { percent(pct); lastPct = pct; }
-                }
+                raf.setLength(f.getTotalSize());
+            }
+            for (ChunkData chunk : f.getChunks()) jobs.add(new ChunkJob(out, chunk));
+        }
+
+        // Chunks in parallel, as DepotDownloader does (PARALLEL_CHUNKS at a time): a mod is thousands
+        // of small files, and one request at a time spends its time waiting, not transferring
+        // (0.15 MB/s on a 117 MB mod, 2026-10-11). CDN edge nodes throw transient 503s under load;
+        // each chunk rotates across the server list and retries on its own.
+        final java.util.concurrent.atomic.AtomicInteger nextServer =
+                new java.util.concurrent.atomic.AtomicInteger(Math.max(firstGood, 0));
+        final java.util.concurrent.atomic.AtomicLong doneBytes = new java.util.concurrent.atomic.AtomicLong();
+        final java.util.concurrent.atomic.AtomicInteger lastPct = new java.util.concurrent.atomic.AtomicInteger(-1);
+        final long total = totalBytes;
+        java.util.concurrent.ExecutorService pool = java.util.concurrent.Executors.newFixedThreadPool(PARALLEL_CHUNKS);
+        List<java.util.concurrent.Future<?>> futures = new java.util.ArrayList<>();
+        try {
+            for (ChunkJob job : jobs) {
+                futures.add(pool.submit(() -> {
+                    if (!running) return null;
+                    int written = fetchChunk(cdn, depot, job.chunk, servers, nextServer, depotKey, content, appId, tokenCache, job.file);
+                    long done = doneBytes.addAndGet(written);
+                    int pct = total > 0 ? (int) (done * 100 / total) : 0;
+                    if (lastPct.getAndSet(pct) != pct) percent(pct);
+                    return null;
+                }));
+            }
+            for (java.util.concurrent.Future<?> fu : futures) fu.get();   // the first failure stops the item
+        } catch (java.util.concurrent.ExecutionException e) {
+            Throwable cause = e.getCause();
+            throw cause instanceof Exception ? (Exception) cause : e;
+        } finally {
+            pool.shutdownNow();
+        }
+        if (!running) return false;
+        progress("content fetched (" + (doneBytes.get() / (1024 * 1024)) + " MB)");
+        return true;
+    }
+
+    /** How many chunks download at once (DepotDownloader's default). */
+    private static final int PARALLEL_CHUNKS = 8;
+
+    private static final class ChunkJob {
+        final File file;
+        final ChunkData chunk;
+        ChunkJob(File file, ChunkData chunk) { this.file = file; this.chunk = chunk; }
+    }
+
+    /** One chunk, with retries across the CDN servers, written at its offset. Returns the bytes written. */
+    private int fetchChunk(Client cdn, int depot, ChunkData chunk, List<Server> servers,
+                           java.util.concurrent.atomic.AtomicInteger nextServer, byte[] depotKey,
+                           SteamContent content, int appId, Map<String, String> tokenCache, File out) throws Exception {
+        // Buffer must be >= compressedLength (Future precondition); the decompressor writes
+        // uncompressedLength. Tiny/incompressible chunks can store larger than raw → take max.
+        byte[] dest = new byte[Math.max(chunk.getCompressedLength(), chunk.getUncompressedLength())];
+        int written = -1;
+        Exception chunkErr = null;
+        int tries = Math.max(servers.size(), 10);
+        for (int t = 0; t < tries && written < 0 && running; t++) {
+            Server s = servers.get(Math.floorMod(nextServer.get(), servers.size()));
+            try {
+                written = cdn.downloadDepotChunkFuture(depot, chunk, s, dest, depotKey, null,
+                        cdnTokenFor(content, appId, depot, s, tokenCache)).get(180, TimeUnit.SECONDS);
+            } catch (Exception e) {
+                chunkErr = e;
+                Log.w(TAG, "chunk via " + s.getHost() + " failed (try " + (t + 1) + "): " + describe(e));
+                nextServer.incrementAndGet();            // rotate to the next CDN server
+                Thread.sleep(Math.min(400L * (t + 1), 3000L));   // 503s pass in a moment
             }
         }
-        progress("content fetched (" + (doneBytes / (1024 * 1024)) + " MB)");
-        return true;
+        if (written < 0) {
+            if (!running) throw new java.io.IOException("cancelled");
+            throw chunkErr != null ? chunkErr : new java.io.IOException("chunk download failed");
+        }
+        try (RandomAccessFile raf = new RandomAccessFile(out, "rw")) {
+            raf.seek(chunk.getOffset());
+            raf.write(dest, 0, written);
+        }
+        return written;
     }
 
     /** CDN auth token is optional for public content; fetch best-effort + cache per host, null on failure. */
     private String cdnTokenFor(SteamContent content, int appId, int depot, Server s, Map<String, String> cache) {
         String host = s.getHost() != null ? s.getHost() : s.getVHost();
         if (host == null) return null;
-        if (cache.containsKey(host)) return cache.get(host);
-        String token = null;
-        try {
-            CDNAuthToken tok = awaitDeferred(
-                    content.getCDNAuthToken(appId, depot, host, GlobalScope.INSTANCE), 15000);
-            if (tok != null && tok.getResult() == EResult.OK) token = tok.getToken();
-        } catch (Throwable ignored) { /* public content usually doesn't need a token */ }
-        cache.put(host, token);
-        return token;
+        synchronized (cache) {   // chunks download in parallel; one token request per host
+            if (cache.containsKey(host)) return cache.get(host);
+            String token = null;
+            try {
+                CDNAuthToken tok = awaitDeferred(
+                        content.getCDNAuthToken(appId, depot, host, GlobalScope.INSTANCE), 15000);
+                if (tok != null && tok.getResult() == EResult.OK) token = tok.getToken();
+            } catch (Throwable ignored) { /* public content usually doesn't need a token */ }
+            cache.put(host, token);
+            return token;
+        }
     }
 
     /** Get the AES depot key anonymously (proven viable for workshop depots). */

@@ -272,8 +272,8 @@
     <string name="download_dlc_note">Выберите DLC, которыми владеет ваш аккаунт. Каждое скачивается портативным .zip в /Download/RimDroid — затем импортируйте его в любой инстанс из меню. (Чужие DLC пропускаются.)</string>
     <string name="download_dlc_start">Скачать выбранные DLC</string>
     <string name="download_install_content">Установить мод / DLC в инстанс</string>
-    <string name="download_mods_note">Скачивание модов Мастерской по ID (число в URL мастерской: …/sharedfiles/filedetails/?id=ЧИСЛО). Логин Steam не нужен. Несколько ID — через пробел. Каждый сохраняется в .zip в /Download/RimDroid.</string>
-    <string name="download_mods_hint">ID Мастерской — через пробел</string>
+    <string name="download_mods_note">Скачивание модов Мастерской по ID или ссылке (…/sharedfiles/filedetails/?id=ЧИСЛО). Логин Steam не нужен. Несколько ID — через пробел. Ссылка на коллекцию скачивает все её моды в порядке коллекции. Каждый мод сохраняется в .zip в /Download/RimDroid.</string>
+    <string name="download_mods_hint">ID или ссылки Мастерской — моды или коллекция</string>
     <string name="download_mods_hint_single">ID Мастерской</string>
     <string name="download_mods_start">Скачать моды</string>
     <string name="download_mods_login_head">Прямое скачивание (без логина)</string>

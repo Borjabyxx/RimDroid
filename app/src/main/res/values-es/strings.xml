@@ -278,8 +278,8 @@ En la nube: %2$s
     <string name="download_dlc_note">Elige los DLC que tenga tu cuenta. Cada uno se descarga como un .zip portable en /Download/RimDroid; impórtalo en cualquier instancia desde el menú. (Los DLC que no tengas se omiten.)</string>
     <string name="download_dlc_start">Descargar los DLC seleccionados</string>
     <string name="download_install_content">Instalar un mod / DLC en una instancia</string>
-    <string name="download_mods_note">Descarga mods del Workshop por ID (el número de la URL del workshop: …/sharedfiles/filedetails/?id=NÚMERO). No hace falta iniciar sesión en Steam. Puedes poner varios ID separados por espacios. Cada uno se guarda como .zip en /Download/RimDroid.</string>
-    <string name="download_mods_hint">ID del Workshop — separados por espacios</string>
+    <string name="download_mods_note">Descarga mods del Workshop por ID o enlace (…/sharedfiles/filedetails/?id=NÚMERO). No hace falta iniciar sesión en Steam. Puedes poner varios ID separados por espacios. Un enlace a una colección descarga todos sus mods, en el orden de la colección. Cada mod se guarda como .zip en /Download/RimDroid.</string>
+    <string name="download_mods_hint">ID o enlaces del Workshop — mods o una colección</string>
     <string name="download_mods_hint_single">ID del Workshop</string>
     <string name="download_mods_start">Descargar mods</string>
     <string name="download_mods_login_head">Descarga directa (sin iniciar sesión)</string>
