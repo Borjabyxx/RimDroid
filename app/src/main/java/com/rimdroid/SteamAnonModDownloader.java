@@ -327,9 +327,62 @@ public class SteamAnonModDownloader implements Runnable, Cancellable {
             String title;
             try { title = resolvePublishedFile(id).title; } catch (Exception e) { title = "(collection)"; }
             progress("Collection '" + title + "' (" + id + "): " + children.size() + " mods");
-            for (Long child : children) if (!out.contains(child)) out.add(child);
+            // The mods by number and name, as the log shows them when typed in by hand.
+            Map<Long, String> titles = resolveTitles(children);
+            int n = 0;
+            for (Long child : children) {
+                n++;
+                String name = titles.get(child);
+                progress("  " + n + ". " + child + (name != null ? " — " + name : ""));
+                if (!out.contains(child)) out.add(child);
+            }
         }
         return out;
+    }
+
+    /** Titles for many items in one request (GetPublishedFileDetails takes a list); missing on failure. */
+    private static Map<Long, String> resolveTitles(List<Long> ids) {
+        Map<Long, String> titles = new HashMap<>();
+        if (ids.isEmpty()) return titles;
+        try {
+            URL url = new URL("https://api.steampowered.com/ISteamRemoteStorage/GetPublishedFileDetails/v1/");
+            HttpURLConnection c = (HttpURLConnection) url.openConnection();
+            try {
+                c.setRequestMethod("POST");
+                c.setDoOutput(true);
+                c.setConnectTimeout(20000);
+                c.setReadTimeout(30000);
+                c.setRequestProperty("Content-Type", "application/x-www-form-urlencoded");
+                StringBuilder body = new StringBuilder("itemcount=" + ids.size());
+                for (int i = 0; i < ids.size(); i++) body.append("&publishedfileids%5B").append(i).append("%5D=").append(ids.get(i));
+                try (OutputStream os = c.getOutputStream()) {
+                    os.write(body.toString().getBytes(StandardCharsets.UTF_8));
+                }
+                int code = c.getResponseCode();
+                InputStream in = code >= 200 && code < 300 ? c.getInputStream() : c.getErrorStream();
+                StringBuilder sb = new StringBuilder();
+                if (in != null) {
+                    try (BufferedReader r = new BufferedReader(new InputStreamReader(in, StandardCharsets.UTF_8))) {
+                        String line;
+                        while ((line = r.readLine()) != null) sb.append(line);
+                    }
+                }
+                JSONObject resp = new JSONObject(sb.toString()).optJSONObject("response");
+                JSONArray arr = resp != null ? resp.optJSONArray("publishedfiledetails") : null;
+                for (int i = 0; arr != null && i < arr.length(); i++) {
+                    JSONObject d = arr.getJSONObject(i);
+                    if (d.optInt("result", 0) != 1) continue;
+                    try {
+                        titles.put(Long.parseLong(d.optString("publishedfileid", "")), d.optString("title", ""));
+                    } catch (NumberFormatException ignored) {}
+                }
+            } finally {
+                c.disconnect();
+            }
+        } catch (Exception e) {
+            Log.w(TAG, "titles: " + describe(e));
+        }
+        return titles;
     }
 
     /** The mods of a collection in order, or an empty list for anything that is not a collection. */
