@@ -57,7 +57,7 @@
     <li><a href="#controls">Controls</a></li>
     <li><a href="#saves">Saves and settings</a></li>
     <li><a href="#compat-mode">Compatibility mode</a></li>
-    <li><a href="#native-mono">Native ARM64 Mono</a></li>
+    <li><a href="#engine">Engine</a></li>
     <li><a href="#performance">Getting the best performance</a></li>
     <li><a href="#known-issues">Known issues</a></li>
     <li><a href="#report">Reporting a problem</a></li>
@@ -90,6 +90,7 @@
         more for comfortable play), plus 5–10 GB of free storage.
     </p>
     <p>The <b>?</b> at the top of each screen opens this page at the part about that screen.</p>
+    <p>The ⋮ menu of an instance card has <b>Add to home screen</b>: a shortcut that starts the game right away, without the launcher.</p>
     <p>Something went wrong? See <a href="#report">Reporting a problem</a>.</p>
 </section>
 
@@ -384,24 +385,40 @@
     </p>
 </section>
 
-<section id="native-mono">
-    <h2>Native ARM64 Mono</h2>
+<section id="engine">
+    <h2>Engine</h2>
     <p>
-        In the instance settings, card <b>Advanced</b>. RimWorld 1.6 only, on by default.
-    </p>
-    <p>
-        Normally RimDroid emulates all of RimWorld, including the code of the game itself and of its
-        mods. With this switch the game's and the mods' code runs directly on the phone's processor,
-        and only the Unity engine is emulated. Simulation, loading and high game speeds get
-        noticeably faster. For our testers loading got about twice as fast, and speed 3 is finally
-        really faster than speed 2. The bigger the colony and the modlist, the bigger the difference.
+        In the instance settings (gear icon), the first card. RimWorld 1.6 only: a 1.5 instance always
+        runs the first way.
     </p>
     <ul>
-        <li>If the game crashes twice in a row while starting, the launcher offers to turn native
-            Mono off.</li>
-        <li>If something is wrong, just turn the switch off: the game goes back to the previous
-            mode. Your saves are not affected, they load in both modes.</li>
+        <li><b>Full emulation (box64)</b>: everything runs through x86 emulation. The most compatible,
+            the slowest.</li>
+        <li><b>box64 + native Mono</b>: the engine is emulated, the game's and the mods' code runs
+            natively. Faster; the previous default.</li>
+        <li><b>Native engine (experimental)</b>: the game's own engine built for Android, nothing
+            emulated. The fastest and the lightest on memory. Vulkan only. A new instance starts on it;
+            an instance that played before keeps its engine until you switch it here, and the launcher
+            tells you once that the new engine exists.</li>
     </ul>
+    <p>What is different on the native engine:</p>
+    <ul>
+        <li>The renderer and Vulkan driver settings do not apply: it always draws directly with
+            Vulkan. <b>Vulkan compatibility</b> below the engine choice: Auto turns it on for the GPUs
+            known to need it (Mali-G615); turn it on if the picture freezes on the logo or in the menu
+            while the game keeps running.</li>
+        <li><b>Texture compression</b> (No / Low / Ultra low) works here too, but shrinks only the big
+            textures; icons and pawns stay sharp. Low is the default for a new instance: on an 8 GB phone
+            with many mods the game may not load without it.</li>
+        <li>The resolution presets work as on box64: <b>Black margins 1280×720</b> draws the game in a
+            16:9 box with black margins.</li>
+        <li>The mouse wheel zooms the map and scrolls lists, as on a PC (lists need the Harmony mod).
+            The pinch and the Zoom in / Zoom out buttons do the same.</li>
+        <li>A message that Steam could not be initialised may appear at the start: tap Ignore.</li>
+        <li>If something is wrong, switch back to box64 + native Mono here; the saves are the same for
+            all three engines.</li>
+    </ul>
+    <p><b>Report a bug</b> attaches the native engine's own log.</p>
 </section>
 
 <hr>

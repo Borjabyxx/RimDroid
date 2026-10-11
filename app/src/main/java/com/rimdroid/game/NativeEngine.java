@@ -118,6 +118,9 @@ public final class NativeEngine {
         // Unity without secondary command buffers: on a Mali-G615 Arm's driver loses the device on
         // them (the menu, or the world right after, the picture frozen); other Malis run without it
         // and lose fps with it, so Auto turns it on for the G615 only (ValDroid, POCO X6 Pro 2026-10-07).
+        // Frame rate limit (Settings → Frame rate): il2mono caps Application.targetFrameRate with it;
+        // 0 = no limit (the engine's 120).
+        env.add("RIMDROID_FPS_CAP=" + is.getFpsCap());
         int vkCompat = is.getVulkanCompat();
         boolean noSecondary = vkCompat == com.rimdroid.InstanceSettings.VK_COMPAT_ON
                 || (vkCompat == com.rimdroid.InstanceSettings.VK_COMPAT_AUTO && needsVulkanCompat());
@@ -152,6 +155,7 @@ public final class NativeEngine {
                         : tier == com.rimdroid.InstanceSettings.TEX_LOW ? 1 : 0) + "\n"
                 + "texture compr : game setting pinned on\n"
                 + "render size   : " + (renderSize != null ? renderSize[0] + "x" + renderSize[1] : "screen") + "\n"
+                + "fps cap       : " + (is.getFpsCap() > 0 ? is.getFpsCap() : 0) + " (0 = none)\n"
                 + "extra env     : " + userEnvironmentSummary(is) + "\n"
                 + "unity args    : (see below)\n"
                 + "active mods   : " + com.rimdroid.GameLauncher.readActiveMods(instance) + "\n";

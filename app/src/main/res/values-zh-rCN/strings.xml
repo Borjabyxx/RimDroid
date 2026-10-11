@@ -347,4 +347,26 @@
         <item>L3 — Q（旋转）</item>
         <item>R3 — Shift（多选）</item>
     </string-array>
+
+    <!-- Engine card (instance settings) -->
+    <string name="native_engine_label">原生引擎（实验性）</string>
+    <string name="native_engine_hint">用为 Android 构建的游戏引擎运行游戏，无需模拟。仅限 RimWorld 1.6。早期测试：请先备份存档。</string>
+    <string name="native_engine_failed">无法启动原生引擎：%1$s</string>
+    <string name="engine_label">引擎</string>
+    <string name="engine_box64">完全模拟（box64）</string>
+    <string name="engine_box64_hint">一切都通过 x86 模拟运行。兼容性最好，速度最慢。</string>
+    <string name="engine_box64_mono">box64 + 原生 Mono</string>
+    <string name="engine_box64_mono_hint">引擎被模拟，游戏自身的代码原生运行。更快。</string>
+    <string name="engine_native_hint">为 Android 构建的游戏引擎，无需模拟。最快。仅限 RimWorld 1.6；仅支持 Vulkan。早期测试：请先备份存档。</string>
+    <string name="engine_native_renderer_note">原生引擎始终直接通过 Vulkan 渲染。</string>
+    <string name="engine_notice_title">有新引擎可用</string>
+    <string name="engine_notice_msg">此版本可以用原生引擎运行 RimWorld：更快，无需模拟。此实例会保持原来的引擎，直到你在“设置 → 引擎”中切换。早期测试：请先备份存档。</string>
+    <string name="engine_notice_switch">立即切换</string>
+    <string name="engine_notice_keep">暂不</string>
+    <string name="vk_compat_label">Vulkan 兼容性</string>
+    <string name="vk_compat_auto_on">自动（此 GPU 已开启）</string>
+    <string name="vk_compat_auto_off">自动（此 GPU 已关闭）</string>
+    <string name="vk_compat_on">开启</string>
+    <string name="vk_compat_off">关闭</string>
+    <string name="vk_compat_hint">如果画面在标志或菜单处卡住而游戏仍在运行，请开启。画面相同，只是 Unity 构建每一帧的方式不同。下次启动生效。</string>
 </resources>

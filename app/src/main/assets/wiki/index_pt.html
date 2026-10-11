@@ -57,7 +57,7 @@
     <li><a href="#controls">Controles</a></li>
     <li><a href="#saves">Jogos salvos e configurações</a></li>
     <li><a href="#compat-mode">Modo de compatibilidade</a></li>
-    <li><a href="#native-mono">Mono ARM64 nativo</a></li>
+    <li><a href="#engine">Motor</a></li>
     <li><a href="#performance">Como tirar o máximo de desempenho</a></li>
     <li><a href="#known-issues">Problemas conhecidos</a></li>
     <li><a href="#report">Como relatar um problema</a></li>
@@ -90,6 +90,7 @@
         RAM</b> (8 GB ou mais para jogar com conforto), além de 5–10 GB de espaço livre.
     </p>
     <p>O <b>?</b> no topo de cada tela abre esta página na parte sobre aquela tela.</p>
+    <p>O menu ⋮ do cartão de uma instância tem <b>Adicionar à tela inicial</b>: um atalho que inicia o jogo direto, sem passar pelo launcher.</p>
     <p>Algo deu errado? Veja <a href="#report">Como relatar um problema</a>.</p>
 </section>
 
@@ -394,26 +395,40 @@
     </p>
 </section>
 
-<section id="native-mono">
-    <h2>Mono ARM64 nativo</h2>
+<section id="engine">
+    <h2>Motor</h2>
     <p>
-        Nas configurações da instância, cartão <b>Avançado</b>. Apenas RimWorld 1.6, ativado por
-        padrão.
-    </p>
-    <p>
-        Normalmente o RimDroid emula o RimWorld inteiro, incluindo o código do próprio jogo e dos
-        mods. Com esta opção o código do jogo e dos mods roda direto no processador do celular, e só
-        o motor Unity é emulado. A simulação, o carregamento e as velocidades altas do jogo ficam
-        bem mais rápidos. Para os nossos testers o carregamento ficou cerca de duas vezes mais
-        rápido, e a velocidade 3 finalmente ficou mais rápida que a 2. Quanto maior a colônia e a
-        lista de mods, maior a diferença.
+        Nas configurações da instância (engrenagem), o primeiro cartão. Só RimWorld 1.6: uma instância
+        1.5 sempre roda do primeiro jeito.
     </p>
     <ul>
-        <li>Se o jogo fechar duas vezes seguidas ao iniciar, o launcher vai sugerir desativar o
-            Mono nativo.</li>
-        <li>Se algo der errado, é só desativar a opção: o jogo volta ao modo anterior. Seus saves
-            não mudam e carregam nos dois modos.</li>
+        <li><b>Emulação completa (box64)</b>: tudo roda por emulação x86. O mais compatível, o mais
+            lento.</li>
+        <li><b>box64 + Mono nativo</b>: o motor é emulado, o código do jogo e dos mods roda nativamente.
+            Mais rápido; o padrão anterior.</li>
+        <li><b>Motor nativo (experimental)</b>: o motor do jogo compilado para Android, sem emulação. O
+            mais rápido e o que usa menos memória. Só Vulkan. Uma instância nova começa nele; uma
+            instância já jogada mantém seu motor até você trocar aqui, e o launcher avisa uma vez que o
+            novo motor existe.</li>
     </ul>
+    <p>O que muda no motor nativo:</p>
+    <ul>
+        <li>As configurações de renderizador e de driver Vulkan não se aplicam: ele sempre desenha
+            diretamente com Vulkan. <b>Compatibilidade Vulkan</b> abaixo da escolha do motor: Auto liga
+            nas GPUs que sabidamente precisam (Mali-G615); ligue se a imagem congela no logotipo ou no menu
+            enquanto o jogo continua rodando.</li>
+        <li><b>Compressão de texturas</b> (Não / Baixa / Muito baixa) também funciona aqui, mas reduz só
+            as texturas grandes; ícones e colonos continuam nítidos. Baixa é o padrão de uma instância
+            nova: num celular de 8 GB com muitos mods o jogo pode não carregar sem ela.</li>
+        <li>Os presets de resolução funcionam como no box64: <b>Margens pretas 1280×720</b> desenha o
+            jogo numa caixa 16:9 com margens pretas.</li>
+        <li>A roda do mouse aproxima o mapa e rola listas, como no PC (as listas precisam do mod Harmony).
+            A pinça e os botões Zoom in / Zoom out fazem o mesmo.</li>
+        <li>No início pode aparecer uma mensagem de que o Steam não pôde iniciar: toque em Ignore.</li>
+        <li>Se algo der errado, volte aqui para box64 + Mono nativo; os saves são os mesmos para os três
+            motores.</li>
+    </ul>
+    <p><b>Relatar um erro</b> anexa o log próprio do motor nativo.</p>
 </section>
 
 <hr>

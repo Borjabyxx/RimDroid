@@ -57,7 +57,7 @@
     <li><a href="#controls">Controles</a></li>
     <li><a href="#saves">Partidas y ajustes</a></li>
     <li><a href="#compat-mode">Modo de compatibilidad</a></li>
-    <li><a href="#native-mono">Mono ARM64 nativo</a></li>
+    <li><a href="#engine">Motor</a></li>
     <li><a href="#performance">Cómo sacar el máximo rendimiento</a></li>
     <li><a href="#known-issues">Problemas conocidos</a></li>
     <li><a href="#report">Cómo reportar un problema</a></li>
@@ -91,6 +91,7 @@
     </p>
     <p>El <b>?</b> en la parte superior de cada pantalla abre esta página en la parte que habla
         de esa pantalla.</p>
+    <p>El menú ⋮ de la tarjeta de una instancia tiene <b>Añadir a la pantalla de inicio</b>: un acceso directo que inicia el juego directamente, sin pasar por el lanzador.</p>
     <p>¿Algo salió mal? Mira <a href="#report">Cómo reportar un problema</a>.</p>
 </section>
 
@@ -402,26 +403,41 @@
     </p>
 </section>
 
-<section id="native-mono">
-    <h2>Mono ARM64 nativo</h2>
+<section id="engine">
+    <h2>Motor</h2>
     <p>
-        En los ajustes de la instancia, tarjeta <b>Avanzado</b>. Solo RimWorld 1.6, activado por
-        defecto.
-    </p>
-    <p>
-        Normalmente RimDroid emula todo RimWorld, incluido el código del propio juego y de sus mods.
-        Con este interruptor el código del juego y de los mods se ejecuta directamente en el
-        procesador del teléfono, y solo se emula el motor Unity. La simulación, la carga y las
-        velocidades altas del juego son notablemente más rápidas. A nuestros testers la carga les
-        fue aproximadamente el doble de rápida, y la velocidad 3 por fin es de verdad más rápida que
-        la 2. Cuanto más grande la colonia y la lista de mods, más se nota.
+        En los ajustes de la instancia (engranaje), la primera tarjeta. Solo RimWorld 1.6: una instancia
+        1.5 siempre funciona de la primera manera.
     </p>
     <ul>
-        <li>Si el juego se cierra dos veces seguidas al iniciar, el launcher te ofrecerá desactivar
-            el Mono nativo.</li>
-        <li>Si algo va mal, simplemente desactiva el interruptor: el juego vuelve al modo anterior.
-            Tus partidas no cambian y se cargan en ambos modos.</li>
+        <li><b>Emulación completa (box64)</b>: todo se ejecuta mediante emulación x86. El más compatible,
+            el más lento.</li>
+        <li><b>box64 + Mono nativo</b>: el motor se emula, el código del juego y de los mods se ejecuta de
+            forma nativa. Más rápido; el valor por defecto anterior.</li>
+        <li><b>Motor nativo (experimental)</b>: el motor del juego compilado para Android, sin emulación.
+            El más rápido y el que menos memoria usa. Solo Vulkan. Una instancia nueva empieza con él; una
+            instancia ya jugada conserva su motor hasta que lo cambies aquí, y el lanzador te avisa una vez
+            de que existe el nuevo motor.</li>
     </ul>
+    <p>Qué cambia con el motor nativo:</p>
+    <ul>
+        <li>Los ajustes de renderizador y de controlador Vulkan no se aplican: siempre dibuja directamente
+            con Vulkan. <b>Compatibilidad Vulkan</b> debajo de la elección del motor: Auto la activa en las
+            GPU que la necesitan (Mali-G615); actívala si la imagen se congela en el logotipo o en el menú
+            mientras el juego sigue funcionando.</li>
+        <li><b>Compresión de texturas</b> (No / Baja / Muy baja) también funciona aquí, pero solo reduce
+            las texturas grandes; los iconos y los colonos siguen nítidos. Baja es el valor por defecto de
+            una instancia nueva: en un teléfono de 8 GB con muchos mods el juego puede no cargar sin
+            ella.</li>
+        <li>Los preajustes de resolución funcionan como en box64: <b>Márgenes negros 1280×720</b> dibuja
+            el juego en un recuadro 16:9 con márgenes negros.</li>
+        <li>La rueda del ratón acerca el mapa y desplaza las listas, como en un PC (las listas necesitan
+            el mod Harmony). El pellizco y los botones Zoom in / Zoom out hacen lo mismo.</li>
+        <li>Al inicio puede aparecer un mensaje de que Steam no se pudo iniciar: pulsa Ignore.</li>
+        <li>Si algo va mal, vuelve aquí a box64 + Mono nativo; las partidas son las mismas para los tres
+            motores.</li>
+    </ul>
+    <p><b>Informar de un error</b> adjunta el registro propio del motor nativo.</p>
 </section>
 
 <hr>

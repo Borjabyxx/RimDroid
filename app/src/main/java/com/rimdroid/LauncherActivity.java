@@ -378,8 +378,8 @@ public class LauncherActivity extends AppCompatActivity {
         if (destinationId == R.id.gog_login_fragment)       return "gog";
         if (destinationId == R.id.install_content_fragment) return "mods";
         if (destinationId == R.id.cloud_saves_fragment)     return "saves";
-        if (destinationId == R.id.settings_fragment
-                || destinationId == R.id.driver_fragment)   return "renderers";
+        if (destinationId == R.id.settings_fragment)        return "engine";
+        if (destinationId == R.id.driver_fragment)          return "renderers";
         if (destinationId == R.id.icon_packs_fragment
                 || destinationId == R.id.controls_transfer_fragment) return "controls";
         return "quick-start";   // the main screen, app settings, and any screen added later
