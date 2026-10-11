@@ -194,7 +194,7 @@ public class InputControlsView extends View {
         float maxY = gameH > 0 ? gameTop  + gameH - 1 : getHeight() - 1;
         curX = Math.max(minX, Math.min(maxX, curX + dx));
         curY = Math.max(minY, Math.min(maxY, curY + dy));
-        GameActivity.touchInput(0, gx(), gy());
+        InputSink.touch(gx(), gy());
         invalidate();   // repaint the overlay cursor (the gamepad path has no touch to trigger it)
     }
 
@@ -206,7 +206,7 @@ public class InputControlsView extends View {
         float maxY = gameH > 0 ? gameTop  + gameH - 1 : getHeight() - 1;
         curX = Math.max(minX, Math.min(maxX, x));
         curY = Math.max(minY, Math.min(maxY, y));
-        GameActivity.touchInput(0, gx(), gy());
+        InputSink.touch(gx(), gy());
         invalidate();
     }
 
@@ -216,21 +216,21 @@ public class InputControlsView extends View {
         // Special UI actions are handled here, not sent to the game; act once, on press.
         if (b.kind == Binding.Kind.SPECIAL) {
             if (pressed && b == Binding.TOGGLE_CONTROLS) toggleControlsHidden();
-            else if (pressed && b == Binding.TOGGLE_KEYBOARD && getContext() instanceof GameActivity)
-                ((GameActivity) getContext()).toggleSoftKeyboard();
+            else if (pressed && b == Binding.TOGGLE_KEYBOARD) {
+                if (getContext() instanceof GameActivity) ((GameActivity) getContext()).toggleSoftKeyboard();
+                else InputSink.toggleKeyboard();   // the native engine's overlay
+            }
             return;
         }
-        try {
-            switch (b.kind) {
-                case MOUSE:  GameActivity.buttonInput(b.code, pressed ? 1 : 0, gx(), gy()); break;
-                case SCROLL: if (pressed) GameActivity.scrollInput(gx(), gy(), b.code); break;
-                case KEY:
-                    GameActivity.keyInput(b.code, b.keycode, pressed ? 1 : 0);
-                    if (pressed && b.text != null) GameActivity.nativeText(b.text);
-                    break;
-                case NONE: default: break;
-            }
-        } catch (UnsatisfiedLinkError ignored) {}
+        switch (b.kind) {
+            case MOUSE:  InputSink.button(b.code, pressed, gx(), gy()); break;
+            case SCROLL: if (pressed) InputSink.scroll(gx(), gy(), b.code); break;
+            case KEY:
+                InputSink.key(b.code, b.keycode, pressed);
+                if (pressed && b.text != null) InputSink.text(b.text);
+                break;
+            case NONE: default: break;
+        }
     }
 
     /** Quick press+release of a binding at the cursor (used by mouse-stick tap). */

@@ -2,6 +2,7 @@
 // and the managed RimDroidBridge (reader, internal calls): a virtual gamepad, keyboard and mouse.
 // The bridge writes back a little game state (frame counter, cursor lock/visibility) for the overlay.
 // See tools/unity-native/bridge/*.cs.
+#include <dlfcn.h>
 #include <jni.h>
 #include <pthread.h>
 #include <stdatomic.h>
@@ -238,7 +239,18 @@ IL2MONO_API void JNICALL Java_com_rimdroid_game_NativeInput_nativeMouseScroll(JN
 
 IL2MONO_API jlong JNICALL Java_com_rimdroid_game_NativeInput_nativeGetFrameCount(JNIEnv* env, jclass cls)
 {
-    return (jlong)atomic_load_explicit(&g_game.frames, memory_order_relaxed);
+    uint32_t bridged = atomic_load_explicit(&g_game.frames, memory_order_relaxed);
+    if (bridged)
+        return (jlong)bridged;
+    // Without a managed bridge (RimWorld has none), the frames vkshim saw presented.
+    static uint64_t (*vkshim_frames)(void);
+    if (!vkshim_frames)
+    {
+        void* lib = dlopen("libvkshim.so", RTLD_NOW | RTLD_NOLOAD);
+        if (lib)
+            vkshim_frames = (uint64_t (*)(void))dlsym(lib, "vkshim_frame_count");
+    }
+    return vkshim_frames ? (jlong)vkshim_frames() : 0;
 }
 
 // -1 = the game has not reported yet; else bit 0 = cursor locked, bit 1 = cursor visible.

@@ -149,6 +149,8 @@ typedef struct
     char persistent_data[512];      // Application.persistentDataPath, empty = engine default
     char data_path[512];            // Application.dataPath, empty = engine default (the data archive);
                                     // RimWorld finds Data/ and Mods/ next to its parent, as on Linux
+    int texture_mipmap_limit;       // QualitySettings.globalTextureMipmapLimit: top mips every texture
+                                    // drops (1 = half size, 2 = a quarter), 0 = full
 } Il2MonoConfig;
 
 extern Il2MonoConfig il2mono_cfg;

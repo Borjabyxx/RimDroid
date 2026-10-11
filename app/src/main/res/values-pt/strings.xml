@@ -347,4 +347,24 @@ Na nuvem: %2$s
         <item>L3 — Q (girar)</item>
         <item>R3 — Shift (seleção múltipla)</item>
     </string-array>
+
+    <!-- Engine card (instance settings) -->
+    <string name="engine_label">Motor</string>
+    <string name="engine_box64">Emulação completa (box64)</string>
+    <string name="engine_box64_hint">Tudo roda por emulação x86. O mais compatível, o mais lento.</string>
+    <string name="engine_box64_mono">box64 + Mono nativo</string>
+    <string name="engine_box64_mono_hint">O motor é emulado, o código do jogo roda nativamente. Mais rápido.</string>
+    <string name="native_engine_label">Motor nativo (experimental)</string>
+    <string name="engine_native_hint">O motor do jogo compilado para Android, sem emulação. O mais rápido. Só RimWorld 1.6; só Vulkan. Teste inicial: faça uma cópia dos seus saves primeiro.</string>
+    <string name="engine_native_renderer_note">O motor nativo sempre renderiza diretamente com Vulkan.</string>
+    <string name="engine_notice_title">Novo motor disponível</string>
+    <string name="engine_notice_msg">Esta versão pode rodar o RimWorld no motor nativo: mais rápido, sem emulação. Esta instância continua no motor com que rodava até você trocar em Configurações → Motor. Teste inicial: faça uma cópia dos seus saves primeiro.</string>
+    <string name="engine_notice_switch">Trocar agora</string>
+    <string name="engine_notice_keep">Agora não</string>
+    <string name="vk_compat_label">Compatibilidade Vulkan</string>
+    <string name="vk_compat_auto_on">Auto (ligada para esta GPU)</string>
+    <string name="vk_compat_auto_off">Auto (desligada para esta GPU)</string>
+    <string name="vk_compat_on">Ligada</string>
+    <string name="vk_compat_off">Desligada</string>
+    <string name="vk_compat_hint">Ligue se a imagem congela no logotipo ou no menu enquanto o jogo continua rodando. A imagem é a mesma; o Unity monta cada quadro de outro jeito. Vale a partir do próximo início.</string>
 </resources>

@@ -5,6 +5,7 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.pm.ActivityInfo;
 import android.content.res.Configuration;
+import android.view.InputEvent;
 import android.os.Bundle;
 import android.view.KeyEvent;
 import android.view.MotionEvent;
@@ -158,6 +159,11 @@ public class NativeUnityActivity extends Activity implements IUnityPlayerLifecyc
             keepScreenOn();     // the player resets the flag on start
             hideSystemBars();   // re-hide after dialogs / focus regain
         }
+    }
+
+    /** The overlay's input (mouse and keyboard events made from the on-screen controls) into the player. */
+    public boolean injectInputEvent(InputEvent event) {
+        return mUnityPlayer != null && mUnityPlayer.injectEvent(event);
     }
 
     // The NDK does not deliver ACTION_MULTIPLE key events; inject them.

@@ -25,6 +25,8 @@ import com.rimdroid.game.GameInstanceManager;
 import java.util.List;
 
 public class SettingsFragment extends Fragment {
+    // While the native engine is chosen the renderer group shows Vulkan and ignores its own checks.
+    private boolean rendererLocked;
 
     /** Pass the instance name via arguments so this page edits THAT instance's settings. */
     public static final String ARG_INSTANCE = "instance";
@@ -83,6 +85,7 @@ public class SettingsFragment extends Fragment {
                 break;
         }
         rgRenderer.setOnCheckedChangeListener((group, checkedId) -> {
+            if (rendererLocked) return;   // shown for the native engine, not the player's choice
             if (checkedId == R.id.rb_zink_zfa) {
                 inst.setRenderer(LauncherPreferences.Renderer.ZINK_ZFA);
             } else if (checkedId == R.id.rb_mobileglues) {
@@ -103,36 +106,64 @@ public class SettingsFragment extends Fragment {
         // the save bug that mod worked around is fixed at the root (box64 qsort). The switch's own
         // hint already says it is slower and only helps some devices.
         swCompat.setOnCheckedChangeListener((btn, checked) -> inst.setCompatibilityMode(checked));
-        // Native ARM64 Mono (experimental): offered only for a RimWorld 1.6 instance and only when this
-        // APK packages the runtime; everywhere else the switch and its hint stay hidden.
-        Switch swNativeMono = view.findViewById(R.id.sw_native_mono);
-        View tvNativeMonoHint = view.findViewById(R.id.tv_native_mono_hint);
-        GameInstance nativeMonoInstance = null;
+        // Engine: full emulation / box64 + native Mono / native engine. An option this APK or instance
+        // cannot run is hidden: native Mono needs the runtime packaged and a 1.6 instance
+        // (NativeMono.isSupported), the native engine the player module and 1.6 (NativeEngine.isSupported).
+        // With only one left there is nothing to choose.
+        GameInstance engineInstance = null;
         for (GameInstance candidate : GameInstanceManager.requireSingleton().getInstances()) {
-            if (candidate.getName().equals(instanceName)) nativeMonoInstance = candidate;
+            if (candidate.getName().equals(instanceName)) engineInstance = candidate;
         }
-        boolean nativeMonoOffered = com.rimdroid.game.NativeMono.isSupported(nativeMonoInstance);
-        swNativeMono.setVisibility(nativeMonoOffered ? View.VISIBLE : View.GONE);
-        tvNativeMonoHint.setVisibility(nativeMonoOffered ? View.VISIBLE : View.GONE);
-        swNativeMono.setChecked(nativeMonoOffered && inst.isNativeMono());
-        swNativeMono.setOnCheckedChangeListener((btn, checked) -> {
-            inst.setNativeMono(checked);
-            // Turning it off is the player's way around a problem we would otherwise never hear about.
-            if (!checked) {
+        boolean nativeMonoOffered = com.rimdroid.game.NativeMono.isSupported(engineInstance);
+        boolean nativeEngineOffered = com.rimdroid.game.NativeEngine.isSupported(engineInstance);
+        RadioGroup rgEngine = view.findViewById(R.id.rg_engine);
+        view.findViewById(R.id.rb_engine_box64_mono).setVisibility(nativeMonoOffered ? View.VISIBLE : View.GONE);
+        view.findViewById(R.id.tv_engine_box64_mono_hint).setVisibility(nativeMonoOffered ? View.VISIBLE : View.GONE);
+        view.findViewById(R.id.rb_engine_native).setVisibility(nativeEngineOffered ? View.VISIBLE : View.GONE);
+        view.findViewById(R.id.tv_engine_native_hint).setVisibility(nativeEngineOffered ? View.VISIBLE : View.GONE);
+        int engineChoices = 1 + (nativeMonoOffered ? 1 : 0) + (nativeEngineOffered ? 1 : 0);
+        view.findViewById(R.id.card_engine).setVisibility(engineChoices > 1 ? View.VISIBLE : View.GONE);
+        int engine = inst.getEngine();
+        if (engine == InstanceSettings.ENGINE_NATIVE && !nativeEngineOffered) engine = InstanceSettings.ENGINE_BOX64_MONO;
+        if (engine == InstanceSettings.ENGINE_BOX64_MONO && !nativeMonoOffered) engine = InstanceSettings.ENGINE_BOX64;
+        rgEngine.check(engine == InstanceSettings.ENGINE_NATIVE ? R.id.rb_engine_native
+                : engine == InstanceSettings.ENGINE_BOX64_MONO ? R.id.rb_engine_box64_mono : R.id.rb_engine_box64);
+        applyEngineState(view, engine);
+        rgEngine.setOnCheckedChangeListener((group, checkedId) -> {
+            int chosen = checkedId == R.id.rb_engine_native ? InstanceSettings.ENGINE_NATIVE
+                    : checkedId == R.id.rb_engine_box64_mono ? InstanceSettings.ENGINE_BOX64_MONO
+                    : InstanceSettings.ENGINE_BOX64;
+            inst.setEngine(chosen);
+            applyEngineState(view, chosen);
+            // Leaving native Mono for full emulation is the player's way around a problem we would
+            // otherwise never hear about.
+            if (chosen == InstanceSettings.ENGINE_BOX64) {
                 new com.google.android.material.dialog.MaterialAlertDialogBuilder(requireContext())
                         .setMessage(R.string.native_mono_off_msg)
                         .setPositiveButton(android.R.string.ok, null)
                         .show();
             }
         });
-        // Native engine (experimental): only when this APK carries the player module and for 1.6.
-        Switch swNativeEngine = view.findViewById(R.id.sw_native_engine);
-        View tvNativeEngineHint = view.findViewById(R.id.tv_native_engine_hint);
-        boolean nativeEngineOffered = com.rimdroid.game.NativeEngine.isSupported(nativeMonoInstance);
-        swNativeEngine.setVisibility(nativeEngineOffered ? View.VISIBLE : View.GONE);
-        tvNativeEngineHint.setVisibility(nativeEngineOffered ? View.VISIBLE : View.GONE);
-        swNativeEngine.setChecked(nativeEngineOffered && inst.isNativeEngine());
-        swNativeEngine.setOnCheckedChangeListener((btn, checked) -> inst.setNativeEngine(checked));
+        // Vulkan compatibility (native engine): Auto / On / Off, in the order of the VK_COMPAT_ values.
+        // Auto says what it comes to on this phone.
+        Spinner spVkCompat = view.findViewById(R.id.sp_vk_compat);
+        ArrayAdapter<String> vkCompatAdapter = new ArrayAdapter<>(requireContext(),
+                android.R.layout.simple_spinner_item, new String[]{
+                        getString(com.rimdroid.game.NativeEngine.needsVulkanCompat()
+                                ? R.string.vk_compat_auto_on : R.string.vk_compat_auto_off),
+                        getString(R.string.vk_compat_on), getString(R.string.vk_compat_off) });
+        vkCompatAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+        spVkCompat.setAdapter(vkCompatAdapter);
+        spVkCompat.setSelection(inst.getVulkanCompat());
+        spVkCompat.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
+            @Override
+            public void onItemSelected(AdapterView<?> parent, View v, int position, long id) {
+                inst.setVulkanCompat(position);
+            }
+
+            @Override
+            public void onNothingSelected(AdapterView<?> parent) {}
+        });
         swHaptic.setChecked(inst.isHapticFeedback());
         swHaptic.setOnCheckedChangeListener((btn, checked) -> inst.setHapticFeedback(checked));
         // In-game overlay — GLOBAL: off / classic FPS counter / full performance bar (ported from
@@ -444,5 +475,27 @@ public class SettingsFragment extends Fragment {
                     : (checkedId == R.id.rb_fps_60) ? 60 : 0;
             inst.setFpsCap(cap);
         });
+    }
+
+    /**
+     * What the engine choice decides below it: the native engine always renders with Vulkan directly,
+     * so the renderer, the Vulkan driver and box64's compatibility mode are of no use to it and go
+     * grey, with a note in their place; its own Vulkan compatibility setting shows instead.
+     */
+    private void applyEngineState(View view, int engine) {
+        boolean nativeEngine = engine == InstanceSettings.ENGINE_NATIVE;
+        RadioGroup rgRenderer = view.findViewById(R.id.rg_renderer);
+        rendererLocked = true;
+        if (nativeEngine) rgRenderer.check(R.id.rb_zink_zfa);
+        else rgRenderer.check(inst.getRenderer() == LauncherPreferences.Renderer.MOBILEGLUES
+                ? R.id.rb_mobileglues : R.id.rb_zink_zfa);
+        rendererLocked = false;
+        for (int i = 0; i < rgRenderer.getChildCount(); i++) rgRenderer.getChildAt(i).setEnabled(!nativeEngine);
+        for (int id : new int[]{ R.id.spinner_vulkan_driver, R.id.btn_recommend_driver, R.id.sw_compat_mode }) {
+            View v = view.findViewById(id);
+            if (v != null) v.setEnabled(!nativeEngine);
+        }
+        view.findViewById(R.id.tv_native_renderer_note).setVisibility(nativeEngine ? View.VISIBLE : View.GONE);
+        view.findViewById(R.id.ll_vk_compat).setVisibility(nativeEngine ? View.VISIBLE : View.GONE);
     }
 }

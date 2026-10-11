@@ -160,6 +160,45 @@ public final class PrefsXml {
         return true;
     }
 
+    /**
+     * The native engine: the map zoom keys. The game zooms with the mouse wheel and with PageDown /
+     * PageUp (KeyBindings.xml), and Unity's Android player delivers neither: no wheel at all, and
+     * PageUp/PageDown map to no KeyCode (S25, 2026-10-11). "=" and "-" arrive, so the two bindings are
+     * moved there once, only while they still hold the game's defaults; a key the player chose stays.
+     * The overlay's pinch and zoom buttons press these keys.
+     */
+    public static final String ZOOM_IN_KEY = "Equals", ZOOM_OUT_KEY = "Minus";
+
+    public static void pinZoomKeys(File configDir) {
+        if (configDir == null) return;
+        File f = new File(configDir, "KeyPrefs.xml");
+        try {
+            String xml = f.isFile() ? new String(readAll(f), StandardCharsets.UTF_8)
+                    : "﻿<?xml version=\"1.0\" encoding=\"utf-8\"?>\n<KeyPrefsData>\n</KeyPrefsData>\n";
+            String updated = setKeyBinding(xml, "MapZoom_In", "PageDown", ZOOM_IN_KEY);
+            updated = setKeyBinding(updated, "MapZoom_Out", "PageUp", ZOOM_OUT_KEY);
+            if (updated.equals(xml)) return;
+            writeAll(f, updated.getBytes(StandardCharsets.UTF_8));
+            Log.i(TAG, "KeyPrefs pinned: MapZoom_In=" + ZOOM_IN_KEY + " MapZoom_Out=" + ZOOM_OUT_KEY + " (" + f + ")");
+        } catch (Exception e) {
+            Log.w(TAG, "pinZoomKeys failed for " + f + ": " + e.getMessage());
+        }
+    }
+
+    /** keyBindingA of {@code def}: {@code fromDefault} becomes {@code to}; a missing entry is added with {@code to}. */
+    static String setKeyBinding(String xml, String def, String fromDefault, String to) {
+        Pattern p = Pattern.compile("<key>" + def + "</key>\\s*<value>\\s*<keyBindingA>(.*?)</keyBindingA>", Pattern.DOTALL);
+        Matcher m = p.matcher(xml);
+        if (m.find()) {
+            if (!m.group(1).equals(fromDefault)) return xml;   // the player's own choice
+            return xml.substring(0, m.start(1)) + to + xml.substring(m.end(1));
+        }
+        String entry = "  <li>\n    <key>" + def + "</key>\n    <value>\n      <keyBindingA>" + to
+                + "</keyBindingA>\n      <keyBindingB>None</keyBindingB>\n    </value>\n  </li>\n";
+        int idx = xml.lastIndexOf("</KeyPrefsData>");
+        return idx >= 0 ? xml.substring(0, idx) + entry + xml.substring(idx) : xml;
+    }
+
     /** Replace {@code <key>...</key>} with the new value, or insert before {@code </prefs>}. */
     private static String setTag(String xml, String key, String value) {
         Pattern p = Pattern.compile("<" + key + ">.*?</" + key + ">", Pattern.DOTALL);

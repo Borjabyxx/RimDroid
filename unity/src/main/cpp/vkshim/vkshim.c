@@ -787,11 +787,20 @@ static VKAPI_ATTR VkResult VKAPI_CALL shim_QueueSubmit2KHR(VkQueue queue, uint32
     return submit2_common(device_fns(queue)->submit2khr, "vkQueueSubmit2KHR", queue, n, submits, fence);
 }
 
+// Presented frames, for the overlay's FPS counter (il2mono pad.c reads it over dlsym).
+static _Atomic uint64_t g_frames_presented;
+
+EXPORT uint64_t vkshim_frame_count(void)
+{
+    return atomic_load_explicit(&g_frames_presented, memory_order_relaxed);
+}
+
 static VKAPI_ATTR VkResult VKAPI_CALL shim_QueuePresentKHR(VkQueue queue, const VkPresentInfoKHR* info)
 {
     Slot* s = enter("vkQueuePresentKHR");
     uint64_t t0 = now_ns();
     VkResult r = device_fns(queue)->present(queue, info);
+    atomic_fetch_add_explicit(&g_frames_presented, 1, memory_order_relaxed);
     uint64_t ms = (now_ns() - t0) / 1000000;
     leave(s);
     count(&c_present, r);

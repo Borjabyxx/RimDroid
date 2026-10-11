@@ -345,4 +345,24 @@ En la nube: %2$s
         <item>L3 — Q (rotar)</item>
         <item>R3 — Shift (selección múltiple)</item>
     </string-array>
+
+    <!-- Engine card (instance settings) -->
+    <string name="engine_label">Motor</string>
+    <string name="engine_box64">Emulación completa (box64)</string>
+    <string name="engine_box64_hint">Todo se ejecuta mediante emulación x86. El más compatible, el más lento.</string>
+    <string name="engine_box64_mono">box64 + Mono nativo</string>
+    <string name="engine_box64_mono_hint">El motor se emula, el código del juego se ejecuta de forma nativa. Más rápido.</string>
+    <string name="native_engine_label">Motor nativo (experimental)</string>
+    <string name="engine_native_hint">El motor del juego compilado para Android, sin emulación. El más rápido. Solo RimWorld 1.6; solo Vulkan. Prueba temprana: haz una copia de tus partidas primero.</string>
+    <string name="engine_native_renderer_note">El motor nativo siempre renderiza directamente con Vulkan.</string>
+    <string name="engine_notice_title">Nuevo motor disponible</string>
+    <string name="engine_notice_msg">Esta versión puede ejecutar RimWorld en el motor nativo: más rápido, sin emulación. Esta instancia sigue en el motor con el que funcionaba hasta que lo cambies en Ajustes → Motor. Prueba temprana: haz una copia de tus partidas primero.</string>
+    <string name="engine_notice_switch">Cambiar ahora</string>
+    <string name="engine_notice_keep">Ahora no</string>
+    <string name="vk_compat_label">Compatibilidad Vulkan</string>
+    <string name="vk_compat_auto_on">Auto (activada para esta GPU)</string>
+    <string name="vk_compat_auto_off">Auto (desactivada para esta GPU)</string>
+    <string name="vk_compat_on">Activada</string>
+    <string name="vk_compat_off">Desactivada</string>
+    <string name="vk_compat_hint">Actívala si la imagen se congela en el logotipo o en el menú mientras el juego sigue funcionando. La imagen es la misma; Unity construye cada fotograma de otra forma. Se aplica en el próximo inicio.</string>
 </resources>

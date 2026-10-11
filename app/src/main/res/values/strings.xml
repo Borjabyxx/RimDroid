@@ -366,4 +366,23 @@ In the cloud: %2$s
         <item>L3 — Q (rotate)</item>
         <item>R3 — Shift (multi-select)</item>
     </string-array>
+
+    <!-- Engine card (instance settings) -->
+    <string name="engine_label">Engine</string>
+    <string name="engine_box64">Full emulation (box64)</string>
+    <string name="engine_box64_hint">Everything runs through x86 emulation. Most compatible, slowest.</string>
+    <string name="engine_box64_mono">box64 + native Mono</string>
+    <string name="engine_box64_mono_hint">The engine is emulated, the game\'s own code runs natively. Faster.</string>
+    <string name="engine_native_hint">The game\'s own engine built for Android, nothing emulated. Fastest. RimWorld 1.6 only; Vulkan only. Early test: back up your saves first.</string>
+    <string name="engine_native_renderer_note">The native engine always renders with Vulkan directly.</string>
+    <string name="engine_notice_title">New engine available</string>
+    <string name="engine_notice_msg">This version can run RimWorld on the native engine: faster, nothing emulated. This instance stays on the engine it ran with until you switch it in Settings → Engine. Early test: back up your saves first.</string>
+    <string name="engine_notice_switch">Switch now</string>
+    <string name="engine_notice_keep">Not now</string>
+    <string name="vk_compat_label">Vulkan compatibility</string>
+    <string name="vk_compat_auto_on">Auto (on for this GPU)</string>
+    <string name="vk_compat_auto_off">Auto (off for this GPU)</string>
+    <string name="vk_compat_on">On</string>
+    <string name="vk_compat_off">Off</string>
+    <string name="vk_compat_hint">Turn it on if the picture freezes on the logo or in the menu while the game keeps running. The picture is the same; Unity builds each frame differently. Takes effect at the next launch.</string>
 </resources>

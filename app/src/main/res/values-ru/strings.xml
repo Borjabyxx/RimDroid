@@ -343,4 +343,23 @@
         <item>L3 — Q (поворот)</item>
         <item>R3 — Shift (множ. выделение)</item>
     </string-array>
+
+    <!-- Engine card (instance settings) -->
+    <string name="engine_label">Движок</string>
+    <string name="engine_box64">Полная эмуляция (box64)</string>
+    <string name="engine_box64_hint">Всё работает через эмуляцию x86. Самый совместимый, самый медленный.</string>
+    <string name="engine_box64_mono">box64 + нативный Mono</string>
+    <string name="engine_box64_mono_hint">Движок эмулируется, код самой игры выполняется напрямую. Быстрее.</string>
+    <string name="engine_native_hint">Движок игры, собранный для Android, без эмуляции. Самый быстрый. Только RimWorld 1.6; только Vulkan. Ранний тест: сначала сделай копию сохранений.</string>
+    <string name="engine_native_renderer_note">Нативный движок всегда рисует напрямую через Vulkan.</string>
+    <string name="engine_notice_title">Доступен новый движок</string>
+    <string name="engine_notice_msg">Эта версия умеет запускать RimWorld на нативном движке: быстрее, без эмуляции. Этот инстанс останется на прежнем движке, пока ты не переключишь его в Настройки → Движок. Ранний тест: сначала сделай копию сохранений.</string>
+    <string name="engine_notice_switch">Переключить</string>
+    <string name="engine_notice_keep">Не сейчас</string>
+    <string name="vk_compat_label">Совместимость Vulkan</string>
+    <string name="vk_compat_auto_on">Авто (для этой видеокарты включено)</string>
+    <string name="vk_compat_auto_off">Авто (для этой видеокарты выключено)</string>
+    <string name="vk_compat_on">Включено</string>
+    <string name="vk_compat_off">Выключено</string>
+    <string name="vk_compat_hint">Включи, если картинка замирает на логотипе или в меню, а игра при этом продолжает работать. Картинка та же, Unity иначе собирает каждый кадр. Действует со следующего запуска.</string>
 </resources>

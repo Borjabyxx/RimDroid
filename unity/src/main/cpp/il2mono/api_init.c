@@ -264,13 +264,26 @@ static void set_target_frame_rate_override(int32_t value)
         g_orig_set_target_frame_rate(applied);
 }
 
+// Texture tier (Settings → Video): Unity's own global texture mipmap limit, the engine-side twin of
+// the box64 mip shim. Applied once from the main thread, with the sleep timeout.
+typedef void (*SetMipmapLimitFn)(int32_t limit);
+static SetMipmapLimitFn g_set_texture_mipmap_limit;
+
 static int32_t platform_override(void)
 {
     static atomic_uchar applied;
-    if (g_orig_set_sleep_timeout && !atomic_exchange(&applied, 1))
+    if (!atomic_exchange(&applied, 1))
     {
-        g_orig_set_sleep_timeout(SLEEP_TIMEOUT_NEVER_SLEEP);
-        LOGI("Screen.sleepTimeout -> NeverSleep");
+        if (g_orig_set_sleep_timeout)
+        {
+            g_orig_set_sleep_timeout(SLEEP_TIMEOUT_NEVER_SLEEP);
+            LOGI("Screen.sleepTimeout -> NeverSleep");
+        }
+        if (g_set_texture_mipmap_limit && il2mono_cfg.texture_mipmap_limit > 0)
+        {
+            g_set_texture_mipmap_limit(il2mono_cfg.texture_mipmap_limit);
+            LOGI("QualitySettings.globalTextureMipmapLimit -> %d", il2mono_cfg.texture_mipmap_limit);
+        }
     }
     return RUNTIME_PLATFORM_LINUX_PLAYER;
 }
@@ -312,6 +325,8 @@ static const void* override_icall(const char* name, const void* method)
         LOGI("icall override: %s -> LinuxPlayer", name);
         return (const void*)platform_override;
     }
+    if (!strcmp(name, "UnityEngine.QualitySettings::set_globalTextureMipmapLimit"))
+        g_set_texture_mipmap_limit = (SetMipmapLimitFn)method;   // kept, not replaced
     if (!strcmp(name, "UnityEngine.Bindings.BindingsAllocator::Malloc"))
         g_bindings_malloc = (BindingsMallocFn)method;
     else if (!strcmp(name, "UnityEngine.Bindings.BindingsAllocator::Free"))

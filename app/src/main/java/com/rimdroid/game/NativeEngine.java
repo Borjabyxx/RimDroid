@@ -6,6 +6,8 @@ import android.content.pm.PackageInfo;
 import android.content.res.AssetManager;
 import android.util.Log;
 
+import com.rimdroid.PrefsXml;
+
 import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileInputStream;
@@ -35,6 +37,7 @@ public final class NativeEngine {
     private static final String ACTIVITY = "com.rimdroid.nativeunity.NativeUnityActivity";
     private static final String EXTRA_DATA_ARCHIVE = "rimdroid.dataArchive";
     private static final String EXTRA_ENV = "rimdroid.env";
+    private static final String EXTRA_OVERLAY = "rimdroid.overlay";
     /** The instance being played, for the overlay (controls layout and settings). */
     public static final String EXTRA_INSTANCE = "rimdroid.instance";
 
@@ -50,6 +53,12 @@ public final class NativeEngine {
     private static final int TARGET_LINUX64 = 24;
 
     private NativeEngine() {}
+
+    /** Vulkan compatibility's Auto: the GPUs known to need it, the Mali-G615. */
+    public static boolean needsVulkanCompat() {
+        String renderer = com.rimdroid.GpuInfo.query().renderer;
+        return renderer != null && renderer.contains("G615");
+    }
 
     /** Whether this APK carries the native player module. */
     public static boolean isAvailable() {
@@ -92,7 +101,27 @@ public final class NativeEngine {
         env.add("RIMDROID_IL2MONO_PERSISTENT_DATA=" + userData.getAbsolutePath());
         // RimWorld loads Data/ (Core, DLC) and Mods/ from dataPath's parent: the instance root.
         env.add("RIMDROID_IL2MONO_DATA_PATH=" + dataDir.getAbsolutePath());
-        addUserEnvironment(instance.settings(), env);
+        com.rimdroid.InstanceSettings is = instance.settings();
+        // Texture tier (Settings → Video, the same three positions as the box64 mip shim): Unity's own
+        // texture mipmap limit, applied by il2mono. 1 = every texture half size, 2 = a quarter;
+        // render-target atlases (pawns, animals) have no mips and stay as they are.
+        int tier = is.getTexTier();
+        env.add("RIMDROID_TEXTURE_MIPMAP_LIMIT=" + (tier == com.rimdroid.InstanceSettings.TEX_ULTRA ? 2
+                : tier == com.rimdroid.InstanceSettings.TEX_LOW ? 1 : 0));
+        // Unity without secondary command buffers: on a Mali-G615 Arm's driver loses the device on
+        // them (the menu, or the world right after, the picture frozen); other Malis run without it
+        // and lose fps with it, so Auto turns it on for the G615 only (ValDroid, POCO X6 Pro 2026-10-07).
+        int vkCompat = is.getVulkanCompat();
+        boolean noSecondary = vkCompat == com.rimdroid.InstanceSettings.VK_COMPAT_ON
+                || (vkCompat == com.rimdroid.InstanceSettings.VK_COMPAT_AUTO && needsVulkanCompat());
+        Log.i(TAG, "vulkan compatibility " + vkCompat + " -> no secondary command buffers: " + noSecondary);
+        // The game's own texture compression: on. Unity's Android player compresses to the GPU's
+        // mobile format itself (0.35 GB less graphics memory on the S25, 2026-10-11); the BC shader
+        // trouble that keeps it off under box64 does not exist here.
+        PrefsXml.pinTextureCompression(new File(userData, "Config"), true);
+        // The map zoom keys the overlay presses for the pinch and the zoom buttons (PrefsXml).
+        PrefsXml.pinZoomKeys(new File(userData, "Config"));
+        addUserEnvironment(is, env);
         Log.i(TAG, "native engine environment: " + launchSummary(env));
 
         Intent intent = new Intent();
@@ -100,11 +129,13 @@ public final class NativeEngine {
         intent.putExtra(EXTRA_DATA_ARCHIVE, archive.getAbsolutePath());
         intent.putExtra(EXTRA_ENV, env.toArray(new String[0]));
         intent.putExtra(EXTRA_INSTANCE, instance.getName());
+        intent.putExtra(EXTRA_OVERLAY, com.rimdroid.NativeGameOverlay.class.getName());
         // Unity's own command line (the player reads the "unity" extra). Vulkan always: the game's
         // Linux build carries desktop GL and Vulkan shaders but none for OpenGL ES, which the Android
         // player would otherwise pick. Then the instance's environment field, for tests:
         // RIMDROID_UNITY_ARGS=-force-gfx-direct,-other (commas for spaces).
         StringBuilder unityArgs = new StringBuilder("-force-vulkan");
+        if (noSecondary) unityArgs.append(" -vulkan-disable-secondary-commandbuffers");
         for (String e : env) {
             if (e.startsWith("RIMDROID_UNITY_ARGS=")) {
                 String args = e.substring("RIMDROID_UNITY_ARGS=".length()).replace(',', ' ').trim();

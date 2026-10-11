@@ -44,6 +44,8 @@ bool il2mono_config_load(const char* data_dir)
     copy_env(il2mono_cfg.streaming_assets, sizeof(il2mono_cfg.streaming_assets), "RIMDROID_IL2MONO_STREAMING_ASSETS", def_streaming);
     copy_env(il2mono_cfg.persistent_data, sizeof(il2mono_cfg.persistent_data), "RIMDROID_IL2MONO_PERSISTENT_DATA", NULL);
     copy_env(il2mono_cfg.data_path, sizeof(il2mono_cfg.data_path), "RIMDROID_IL2MONO_DATA_PATH", NULL);
+    const char* mip = getenv("RIMDROID_TEXTURE_MIPMAP_LIMIT");
+    il2mono_cfg.texture_mipmap_limit = mip ? atoi(mip) : 0;
 
     // The first managed dir is where mscorlib must live for mono_set_dirs.
     char first[512];
