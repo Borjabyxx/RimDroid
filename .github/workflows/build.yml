@@ -2,7 +2,7 @@ name: Build RimDroid APK
 
 on:
   push:
-    branches: [ main, master, dev ]
+    branches: [ main, master, dev, native-engine ]
   pull_request:
     branches: [ main, master ]
   workflow_dispatch:
@@ -47,6 +47,27 @@ jobs:
           echo "Installing NDK..."
           sdkmanager "ndk;27.0.12077973" "cmake;3.22.1"
           echo "NDK_HOME=$ANDROID_SDK_ROOT/ndk/27.0.12077973" >> $GITHUB_ENV
+
+      # Native engine (experimental): built only when the repository variable NATIVE_ENGINE is "true".
+      # Unity's Android player comes straight from Unity's download server; it is unpacked and patched
+      # by tools/unity-native/prepare_unity_module.sh. No Unity file is stored in this repository.
+      - name: Cache Unity Android Support package
+        if: vars.NATIVE_ENGINE == 'true'
+        uses: actions/cache@v4
+        with:
+          path: ${{ runner.temp }}/unity-android-support.pkg
+          key: unity-android-support-2022.3.35f1-011206c7a712
+
+      - name: Prepare the native engine module
+        if: vars.NATIVE_ENGINE == 'true'
+        run: |
+          set -euo pipefail
+          PKG="$RUNNER_TEMP/unity-android-support.pkg"
+          [ -f "$PKG" ] || curl -fL --retry 3 -o "$PKG"             "https://download.unity3d.com/download_unity/011206c7a712/MacEditorTargetInstaller/UnitySetup-Android-Support-for-Editor-2022.3.35f1.pkg"
+          sudo apt-get update
+          sudo apt-get install -y libarchive-tools
+          PYTHON=python3 TAR=bsdtar sh tools/unity-native/prepare_unity_module.sh "$PKG"
+          echo "ORG_GRADLE_PROJECT_nativeEngine=true" >> "$GITHUB_ENV"
 
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew

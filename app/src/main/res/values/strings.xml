@@ -66,6 +66,9 @@ In the cloud: %2$s
     <string name="compat_mode_hint">Turn on if the game won\'t start (black screen / stuck on loading). A bit slower, but helps it launch on some devices.</string>
     <string name="native_mono_label">Native ARM64 Mono (experimental)</string>
     <string name="native_mono_hint">Runs the game\'s own code natively instead of through x86 emulation. Usually faster and smoother at high game speed, especially in large colonies. RimWorld 1.6 only. Experimental: back up your saves first, and turn it off if something breaks.</string>
+    <string name="native_engine_label">Native engine (experimental)</string>
+    <string name="native_engine_hint">Runs the game on an Android build of its engine, without emulation. RimWorld 1.6 only. Early test: back up your saves first.</string>
+    <string name="native_engine_failed">Could not start the native engine: %1$s</string>
     <string name="native_mono_off_msg">The game will run in the previous, slower mode. If you turned it off because of a problem, please send us the logs — it helps us fix it.</string>
     <string name="native_mono_crash_title">The game failed to start</string>
     <string name="native_mono_crash_msg">RimWorld crashed twice in a row while starting with Native ARM64 Mono. Turn it off and start the game the usual way? You can turn it back on in this instance\'s settings.</string>
@@ -363,4 +366,23 @@ In the cloud: %2$s
         <item>L3 — Q (rotate)</item>
         <item>R3 — Shift (multi-select)</item>
     </string-array>
+
+    <!-- Engine card (instance settings) -->
+    <string name="engine_label">Engine</string>
+    <string name="engine_box64">Full emulation (box64)</string>
+    <string name="engine_box64_hint">Everything runs through x86 emulation. Most compatible, slowest.</string>
+    <string name="engine_box64_mono">box64 + native Mono</string>
+    <string name="engine_box64_mono_hint">The engine is emulated, the game\'s own code runs natively. Faster.</string>
+    <string name="engine_native_hint">The game\'s own engine built for Android, nothing emulated. Fastest. RimWorld 1.6 only; Vulkan only. Early test: back up your saves first.</string>
+    <string name="engine_native_renderer_note">The native engine always renders with Vulkan directly.</string>
+    <string name="engine_notice_title">New engine available</string>
+    <string name="engine_notice_msg">This version can run RimWorld on the native engine: faster, nothing emulated. This instance stays on the engine it ran with until you switch it in Settings → Engine. Early test: back up your saves first.</string>
+    <string name="engine_notice_switch">Switch now</string>
+    <string name="engine_notice_keep">Not now</string>
+    <string name="vk_compat_label">Vulkan compatibility</string>
+    <string name="vk_compat_auto_on">Auto (on for this GPU)</string>
+    <string name="vk_compat_auto_off">Auto (off for this GPU)</string>
+    <string name="vk_compat_on">On</string>
+    <string name="vk_compat_off">Off</string>
+    <string name="vk_compat_hint">Turn it on if the picture freezes on the logo or in the menu while the game keeps running. The picture is the same; Unity builds each frame differently. Takes effect at the next launch.</string>
 </resources>

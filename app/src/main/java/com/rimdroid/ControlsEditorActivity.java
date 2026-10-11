@@ -205,7 +205,10 @@ public class ControlsEditorActivity extends Activity implements InputControlsVie
 
         if (el instanceof ButtonElement) {
             ButtonElement b = (ButtonElement) el;
-            addBindingSpinner("Action", b.getBinding(), b::setBinding);
+            addBindingSpinner("Action", b.getBinding(), binding -> {
+                b.setBinding(binding);
+                com.rimdroid.input.IconPacks.followPack(this, controls, b);   // the pack's icon for the new action
+            });
             addText("Label", b.getText(), b::setText);
             addCheckbox("Round (circle)", b.getShape() == ButtonElement.Shape.CIRCLE, round -> {
                 b.setShape(round ? ButtonElement.Shape.CIRCLE : ButtonElement.Shape.RECT);
@@ -337,6 +340,8 @@ public class ControlsEditorActivity extends Activity implements InputControlsVie
                         default: desc = ControlElementDescription.button("BTN", Binding.MOUSE_LEFT, "CIRCLE", 0.5f, 0.5f); break;
                     }
                     controls.addElement(desc);
+                    if (controls.getSelected() instanceof ButtonElement)
+                        com.rimdroid.input.IconPacks.followPack(this, controls, (ButtonElement) controls.getSelected());
                 })
                 .show();
     }

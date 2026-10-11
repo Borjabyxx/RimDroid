@@ -25,7 +25,10 @@ public class InstanceSettings {
     private final String pfx;
     private final LauncherPreferences global;
 
+    private final String instanceName;
+
     public InstanceSettings(String instanceName) {
+        this.instanceName = instanceName;
         global = LauncherPreferences.requireSingleton();
         p = global.getSharedPrefs();
         pfx = "inst:" + instanceName + ":";
@@ -172,17 +175,74 @@ public class InstanceSettings {
         p.edit().putBoolean(pfx + "compat_mode", v).apply();
     }
 
-    // --- Native ARM64 Mono (experimental, RimWorld 1.6 only): the game's C# code runs on a native ARM64
-    // build of Unity's Mono instead of the emulated x86_64 one (see com.rimdroid.game.NativeMono and
-    // box64 wrappedlibmonobdwgc.c). Default ON: the value is only stored once the player flips the
-    // switch, so everyone who never touched it gets the native runtime. The switch is only shown (and
-    // the setting only used) for a 1.6 instance when the runtime is packaged in this APK.
-    public boolean isNativeMono() {
-        return p.getBoolean(pfx + "native_mono", true);
+    // --- Engine: how the game runs (Settings → Engine).
+    //   ENGINE_BOX64       the Linux player and the game's C# both under box64 (x86 Mono);
+    //   ENGINE_BOX64_MONO  the Linux player under box64, the C# on our native ARM64 Mono
+    //                      (com.rimdroid.game.NativeMono, box64 wrappedlibmonobdwgc.c);
+    //   ENGINE_NATIVE      Unity's own ARM64 Android player, the C# on ARM64 Mono through il2mono
+    //                      (com.rimdroid.game.NativeEngine; only in APKs built with that module).
+    // The last two are RimWorld 1.6 only.
+    public static final int ENGINE_BOX64 = 0, ENGINE_BOX64_MONO = 1, ENGINE_NATIVE = 2;
+
+    /**
+     * The chosen engine. An instance from before the choice existed keeps what it ran with: its two
+     * old switches ("native_mono", default on, and "native_engine"). A new one starts on the native
+     * engine when the APK carries it, box64 + native Mono otherwise. The decision is stored the first
+     * time, so it does not change behind the player's back; LauncherFragment tells a player whose
+     * instance stayed on box64 that the native engine exists (engine notice).
+     */
+    public int getEngine() {
+        if (p.contains(pfx + "engine")) return p.getInt(pfx + "engine", ENGINE_BOX64_MONO);
+        int engine;
+        if (p.getBoolean(pfx + "native_engine", false)) engine = ENGINE_NATIVE;
+        else if (p.contains(pfx + "native_mono") || hasBeenPlayed())
+            engine = p.getBoolean(pfx + "native_mono", true) ? ENGINE_BOX64_MONO : ENGINE_BOX64;
+        else engine = com.rimdroid.game.NativeEngine.isAvailable() ? ENGINE_NATIVE : ENGINE_BOX64_MONO;
+        setEngine(engine);
+        return engine;
     }
 
-    public void setNativeMono(boolean v) {
-        p.edit().putBoolean(pfx + "native_mono", v).apply();
+    public void setEngine(int engine) {
+        p.edit().putInt(pfx + "engine", engine).apply();
+    }
+
+    /** Whether the instance was launched before: each launch leaves its log in the instance folder. */
+    private boolean hasBeenPlayed() {
+        AppStorage st = AppStorage.getSingleton();
+        if (st == null) return true;   // cannot tell: keep the old default rather than switch engines
+        java.io.File dir = st.getInstanceDir(instanceName);
+        return new java.io.File(dir, "rimdroid.log").exists() || new java.io.File(dir, "box64.log").exists()
+                || new java.io.File(dir, "native_engine").exists();
+    }
+
+    public boolean isNativeMono() {
+        return getEngine() == ENGINE_BOX64_MONO;
+    }
+
+    public boolean isNativeEngine() {
+        return getEngine() == ENGINE_NATIVE;
+    }
+
+    // The one-time notice that the native engine exists, for an instance that stayed on box64.
+    public boolean isEngineNoticeShown() {
+        return p.getBoolean(pfx + "engine_notice", false);
+    }
+
+    public void setEngineNoticeShown() {
+        p.edit().putBoolean(pfx + "engine_notice", true).apply();
+    }
+
+    // --- Native engine, Vulkan compatibility: Unity without secondary command buffers
+    // (-vulkan-disable-secondary-commandbuffers). Auto = on for the GPUs known to lose the device on
+    // them (NativeEngine.needsVulkanCompat: the Mali-G615); On is the way out for another GPU. ---
+    public static final int VK_COMPAT_AUTO = 0, VK_COMPAT_ON = 1, VK_COMPAT_OFF = 2;
+
+    public int getVulkanCompat() {
+        return p.getInt(pfx + "vk_compat", VK_COMPAT_AUTO);
+    }
+
+    public void setVulkanCompat(int mode) {
+        p.edit().putInt(pfx + "vk_compat", mode).apply();
     }
 
     // Safety net for the native runtime (NativeMono.settlePreviousLaunch): when a launch with it started,

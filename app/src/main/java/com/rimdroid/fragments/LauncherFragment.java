@@ -338,12 +338,13 @@ public class LauncherFragment extends Fragment {
         com.rimdroid.InstanceSettings instSettings = gi.settings();
         int nativeMonoFailures = com.rimdroid.game.NativeMono.settlePreviousLaunch(requireContext(), instSettings);
         if (nativeMonoFailures >= com.rimdroid.game.NativeMono.FAILURES_TO_ASK
-                && instSettings.isNativeMono() && com.rimdroid.game.NativeMono.isSupported(gi)) {
+                && instSettings.getEngine() == com.rimdroid.InstanceSettings.ENGINE_BOX64_MONO
+                && com.rimdroid.game.NativeMono.isSupported(gi)) {
             new com.google.android.material.dialog.MaterialAlertDialogBuilder(requireContext())
                     .setTitle(R.string.native_mono_crash_title)
                     .setMessage(R.string.native_mono_crash_msg)
                     .setPositiveButton(R.string.native_mono_crash_off, (d, w) -> {
-                        instSettings.setNativeMono(false);
+                        instSettings.setEngine(com.rimdroid.InstanceSettings.ENGINE_BOX64);
                         instSettings.setNativeMonoFailures(0);
                         startGame(gi);
                     })
@@ -354,12 +355,44 @@ public class LauncherFragment extends Fragment {
                     .show();
             return;
         }
+        // An instance that stayed on box64 while this APK carries the native engine: say so once.
+        if (instSettings.getEngine() != com.rimdroid.InstanceSettings.ENGINE_NATIVE
+                && !instSettings.isEngineNoticeShown() && com.rimdroid.game.NativeEngine.isSupported(gi)) {
+            instSettings.setEngineNoticeShown();
+            new com.google.android.material.dialog.MaterialAlertDialogBuilder(requireContext())
+                    .setTitle(R.string.engine_notice_title)
+                    .setMessage(R.string.engine_notice_msg)
+                    .setPositiveButton(R.string.engine_notice_switch, (d, w) -> {
+                        instSettings.setEngine(com.rimdroid.InstanceSettings.ENGINE_NATIVE);
+                        startGame(gi);
+                    })
+                    .setNegativeButton(R.string.engine_notice_keep, (d, w) -> startGame(gi))
+                    .show();
+            return;
+        }
         startGame(gi);
     }
 
     private void startGame(GameInstance gi) {
         LauncherPreferences.requireSingleton().setLastInstanceName(gi.getName());
         clearLog();
+
+        // Native engine (experimental): Unity's Android player in its own process instead of box64.
+        // Preparing writes the data archive (first launch: a few seconds), so off the UI thread.
+        if (gi.settings().getEngine() == com.rimdroid.InstanceSettings.ENGINE_NATIVE
+                && com.rimdroid.game.NativeEngine.isSupported(gi)) {
+            android.content.Context app = requireContext().getApplicationContext();
+            appendLog("Starting the native engine...");
+            new Thread(() -> {
+                try {
+                    app.startActivity(com.rimdroid.game.NativeEngine.prepare(app, gi));
+                } catch (java.io.IOException | RuntimeException e) {
+                    Log.e(TAG, "Native engine launch failed", e);
+                    appendLog(app.getString(R.string.native_engine_failed, e.getMessage()));
+                }
+            }).start();
+            return;
+        }
 
         android.content.Intent gameIntent = new android.content.Intent(requireContext(), GameActivity.class);
         gameIntent.putExtra(GameActivity.EXTRA_INSTANCE_NAME, gi.getName());   // per-instance scale + controls
