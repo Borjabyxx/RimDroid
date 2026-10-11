@@ -240,6 +240,38 @@ static void set_resolution_override(int32_t width, int32_t height, int32_t mode,
         g_orig_set_resolution(w, h, FULL_SCREEN_MODE_FULL_SCREEN_WINDOW, refresh_rate);
 }
 
+// The texture tier shrinks through Unity's global mipmap limit, which would also quarter the UI
+// icons and pawn textures the game loads from PNG files (64-512 px: blurry buttons, TECNO tester
+// 2026-10-11). As the box64 mip shim, only the big ones should shrink: every texture the game loads
+// with LoadImage that comes out narrower than SMALL_TEXTURE_MAX is flagged to ignore the limit. The
+// atlases the game bakes at run time (where the memory is) are not loaded this way and keep shrinking.
+#define SMALL_TEXTURE_MAX 1024
+typedef int32_t (*LoadImageFn)(void* texture, void* data, int32_t mark_non_readable);
+typedef int32_t (*GetDataWidthFn)(void* texture);
+typedef void (*SetIgnoreMipmapLimitFn)(void* texture, int32_t value);
+static LoadImageFn g_orig_load_image;
+static GetDataWidthFn g_get_data_width;
+static SetIgnoreMipmapLimitFn g_set_ignore_mipmap_limit;
+static atomic_int g_textures_kept, g_textures_shrunk;
+
+static int32_t load_image_override(void* texture, void* data, int32_t mark_non_readable)
+{
+    int32_t ok = g_orig_load_image(texture, data, mark_non_readable);
+    if ((uint8_t)ok && texture && il2mono_cfg.texture_mipmap_limit > 0 && g_get_data_width && g_set_ignore_mipmap_limit)
+    {
+        int32_t width = g_get_data_width(texture);
+        if (width > 0 && width < SMALL_TEXTURE_MAX)
+        {
+            g_set_ignore_mipmap_limit(texture, 1);
+            if (atomic_fetch_add(&g_textures_kept, 1) == 0)
+                LOGI("texture tier: textures under %d px keep their size (first: %d px)", SMALL_TEXTURE_MAX, width);
+        }
+        else if (width > 0 && atomic_fetch_add(&g_textures_shrunk, 1) == 0)
+            LOGI("texture tier: first texture shrunk by the mipmap limit: %d px", width);
+    }
+    return ok;
+}
+
 // Desktop games use targetFrameRate -1 for "unlimited"; on Android -1 means the platform default,
 // 30 fps. The launcher's frame-rate mode gives the cap (RIMDROID_FPS_CAP: the planned rate, or the
 // screen's top rate with the mode off): "unlimited" (<= 0) and anything above it become the cap, a
@@ -340,6 +372,16 @@ static const void* override_icall(const char* name, const void* method)
     }
     if (!strcmp(name, "UnityEngine.QualitySettings::set_globalTextureMipmapLimit"))
         g_set_texture_mipmap_limit = (SetMipmapLimitFn)method;   // kept, not replaced
+    if (!strcmp(name, "UnityEngine.Texture::GetDataWidth"))
+        g_get_data_width = (GetDataWidthFn)method;               // kept, not replaced
+    if (!strcmp(name, "UnityEngine.Texture2D::set_ignoreMipmapLimit"))
+        g_set_ignore_mipmap_limit = (SetIgnoreMipmapLimitFn)method;   // kept, not replaced
+    if (!strcmp(name, "UnityEngine.ImageConversion::LoadImage"))
+    {
+        g_orig_load_image = (LoadImageFn)method;
+        LOGI("icall override: %s (small textures keep their size under the texture tier)", name);
+        return (const void*)load_image_override;
+    }
     if (!strcmp(name, "UnityEngine.Bindings.BindingsAllocator::Malloc"))
         g_bindings_malloc = (BindingsMallocFn)method;
     else if (!strcmp(name, "UnityEngine.Bindings.BindingsAllocator::Free"))
