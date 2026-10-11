@@ -281,6 +281,40 @@ public final class IconPacks {
         return applied;
     }
 
+    /** The pack the open layout uses: the one most of its buttons' icons come from, or null. */
+    @Nullable
+    public static Pack packInUse(@NonNull Context context, @NonNull InputControlsView view) {
+        Pack best = null;
+        int bestCount = 0;
+        for (Pack pack : list(context)) {
+            String prefix = "pack_" + pack.id + "_";
+            int count = 0;
+            for (ControlElement el : view.getElements()) {
+                if (el instanceof ButtonElement && ((ButtonElement) el).getIcon() != null
+                        && ((ButtonElement) el).getIcon().startsWith(prefix)) count++;
+            }
+            if (count > bestCount) { best = pack; bestCount = count; }
+        }
+        return best;
+    }
+
+    /**
+     * A button just added to the layout, or given another action, takes the icon the layout's pack
+     * has for that action, so a new button looks like the rest without another Apply. A picture the
+     * player chose for the button is kept; a pack icon of a previous action is replaced, and an action
+     * the pack has no icon for shows the label again.
+     */
+    public static void followPack(@NonNull Context context, @NonNull InputControlsView view, @NonNull ButtonElement b) {
+        Pack pack = packInUse(context, view);
+        if (pack == null) return;
+        String current = b.getIcon();
+        if (current != null && !current.startsWith("pack_" + pack.id + "_")) return;   // the player's own picture
+        String icon = actionFor(b.getBinding());
+        if (icon != null && pack.icons.contains(icon)) setIcon(context, pack, icon, b);
+        else if (current != null) b.setIcon(null, false);
+        view.invalidate();
+    }
+
     /**
      * Takes the icons off every button of the open layout; they show their labels again (the label
      * is kept all along). Returns how many buttons had an icon.
