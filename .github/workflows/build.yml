@@ -65,8 +65,12 @@ jobs:
           PKG="$RUNNER_TEMP/unity-android-support.pkg"
           [ -f "$PKG" ] || curl -fL --retry 3 -o "$PKG"             "https://download.unity3d.com/download_unity/011206c7a712/MacEditorTargetInstaller/UnitySetup-Android-Support-for-Editor-2022.3.35f1.pkg"
           sudo apt-get update
-          sudo apt-get install -y libarchive-tools mono-devel
-          CSC=mono-csc MONO_API=/usr/lib/mono/4.5-api PYTHON=python3 TAR=bsdtar sh tools/unity-native/prepare_unity_module.sh "$PKG"
+          sudo apt-get install -y libarchive-tools
+          # The bridge compiles with the .NET SDK's Roslyn against the Mono class libraries Unity's
+          # player runs on (tools/unity-native/monoref, MIT): Ubuntu's Mono lacks the netstandard 2.1
+          # facade UnityEngine.CoreModule references.
+          CSC_DLL=$(ls /usr/share/dotnet/sdk/*/Roslyn/bincore/csc.dll | sort -V | tail -n 1)
+          CSC_DLL="$CSC_DLL" DOTNET=dotnet MONO_API="$GITHUB_WORKSPACE/tools/unity-native/monoref/4.5"             PYTHON=python3 TAR=bsdtar sh tools/unity-native/prepare_unity_module.sh "$PKG"
           test -s unity/prepared/assets/rimdroid_native/Managed/RimDroidBridge.dll
           echo "ORG_GRADLE_PROJECT_nativeEngine=true" >> "$GITHUB_ENV"
 
