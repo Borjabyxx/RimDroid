@@ -3,6 +3,9 @@ package com.rimdroid.fragments;
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
+
+import com.rimdroid.InstanceShortcuts;
+import com.rimdroid.LauncherActivity;
 import android.content.IntentFilter;
 import android.net.Uri;
 import android.os.Bundle;
@@ -142,6 +145,15 @@ public class LauncherFragment extends Fragment {
         // was restarted (no onResume = no refresh on return from other screens).
         registerInstallerReceiver();
         refreshInstances();
+        // A home-screen shortcut: start its instance as a tap on Play would.
+        if (getActivity() instanceof LauncherActivity) {
+            String name = ((LauncherActivity) getActivity()).takeLaunchRequest();
+            if (name != null && !InstanceShortcuts.bringRunningGameToFront(requireContext())) {
+                for (GameInstance gi : instances) {
+                    if (gi.getName().equals(name)) { launchInstance(gi); break; }
+                }
+            }
+        }
     }
 
     @Override
@@ -164,6 +176,7 @@ public class LauncherFragment extends Fragment {
         instances.clear();
         instances.addAll(GameInstanceManager.requireSingleton().getInstances());
         if (instanceAdapter != null) instanceAdapter.notifyDataSetChanged();
+        if (getContext() != null) InstanceShortcuts.publish(getContext(), instances);
         int empty = instances.isEmpty() ? View.VISIBLE : View.GONE;
         if (emptyCard != null) emptyCard.setVisibility(empty);
     }
@@ -212,6 +225,7 @@ public class LauncherFragment extends Fragment {
         pm.setOnMenuItemClickListener(item -> {
             int id = item.getItemId();
             if (id == R.id.action_instance_storage)  { openInstanceStorage(gi); return true; }
+            if (id == R.id.action_instance_shortcut) { InstanceShortcuts.pin(requireContext(), gi); return true; }
             if (id == R.id.action_instance_delete)   { confirmDeleteInstance(gi); return true; }
             return false;
         });

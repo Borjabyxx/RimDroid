@@ -151,7 +151,9 @@ public class NativeUnityActivity extends Activity implements IUnityPlayerLifecyc
 
     @Override protected void onNewIntent(Intent intent) {
         super.onNewIntent(intent);
-        setIntent(intent);
+        // A bring-to-front intent (the launcher's shortcut) carries no data archive: keep the one we
+        // started with, getPackageCodePath() reads it for as long as the player runs.
+        if (intent.hasExtra(EXTRA_DATA_ARCHIVE)) setIntent(intent);
         mUnityPlayer.newIntent(intent);
     }
 

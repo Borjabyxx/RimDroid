@@ -12,6 +12,8 @@ import android.widget.FrameLayout;
 import android.util.Log;
 
 public class GameActivity extends Activity implements SurfaceHolder.Callback {
+    /** Whether the box64 game screen is up: a shortcut then brings it back instead of starting again. */
+    public static volatile boolean running;
 
     private static final String TAG = "RimDroid/GameActivity";
 
@@ -304,6 +306,7 @@ public class GameActivity extends Activity implements SurfaceHolder.Callback {
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
+        running = true;
         super.onCreate(savedInstanceState);
 
         instanceName = getIntent().getStringExtra(EXTRA_INSTANCE_NAME);
@@ -835,6 +838,7 @@ public class GameActivity extends Activity implements SurfaceHolder.Callback {
 
     @Override
     protected void onDestroy() {
+        running = false;
         super.onDestroy();
         if (perfThread != null) perfThread.quitSafely();
         GameLauncher.destroyRimDroidWindow();

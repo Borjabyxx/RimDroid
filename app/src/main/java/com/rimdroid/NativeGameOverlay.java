@@ -37,7 +37,7 @@ import com.rimdroid.input.InputSink;
  * ":unity" process): the instance's on-screen controls, the bare-map gestures, the soft keyboard and
  * the in-game HUD, as GameActivity has them. The controls' input becomes Android mouse and keyboard
  * events injected into the player ({@link InputSink.Backend}): the game's legacy Input and IMGUI
- * read them like a desktop mouse and keyboard, so right click, the wheel and held Shift work. Every
+ * read them like a desktop mouse and keyboard. The wheel goes through the managed bridge. Every
  * touch is taken here, so Unity's own touchscreen never sees one.
  */
 public class NativeGameOverlay extends FrameLayout
@@ -173,20 +173,37 @@ public class NativeGameOverlay extends FrameLayout
         }
     }
 
-    // The wheel never reaches the game on Android (a real mouse's ACTION_SCROLL does nothing either),
-    // so a notch presses the zoom key the launcher bound in the game (PrefsXml.pinZoomKeys): "=" in,
-    // "-" out. Notches queue one after another so each registers as its own key press.
+    // Android's legacy Unity input drops the wheel. The bridge routes it to lists or cameras. Until
+    // it reports ready, use the zoom keys pinned by PrefsXml; queued taps are kept separate.
     private static final int SDL_SCANCODE_MINUS = 45, SDL_SCANCODE_EQUALS = 46;
     private static final long ZOOM_TAP_MS = 40, ZOOM_GAP_MS = 80;
     private long zoomQueueUntil;
+    private float fallbackScroll;
 
     @Override public void scroll(int x, int y, int dy) {
-        int sc = dy > 0 ? SDL_SCANCODE_EQUALS : SDL_SCANCODE_MINUS;
-        long now = SystemClock.uptimeMillis();
-        long at = Math.max(now, zoomQueueUntil);
-        zoomQueueUntil = at + ZOOM_GAP_MS;
-        ui.postAtTime(() -> key(sc, 0, true), at);
-        ui.postAtTime(() -> key(sc, 0, false), at + ZOOM_TAP_MS);
+        scrollWheel(x, y, dy);
+    }
+
+    private void scrollWheel(int x, int y, float notches) {
+        if (notches == 0 || !Float.isFinite(notches)) return;
+        if (Looper.myLooper() != Looper.getMainLooper()) {
+            ui.post(() -> scrollWheel(x, y, notches));
+            return;
+        }
+        touch(x, y);
+        if (boxW > 0 && boxH > 0 && NativeInput.scroll(x / (float) boxW, y / (float) boxH, notches)) {
+            fallbackScroll = 0;
+            return;
+        }
+        fallbackScroll += notches;
+        while (Math.abs(fallbackScroll) >= 1f) {
+            int sc = fallbackScroll > 0 ? SDL_SCANCODE_EQUALS : SDL_SCANCODE_MINUS;
+            fallbackScroll += fallbackScroll > 0 ? -1f : 1f;
+            long at = Math.max(SystemClock.uptimeMillis(), zoomQueueUntil);
+            zoomQueueUntil = at + ZOOM_GAP_MS;
+            ui.postAtTime(() -> key(sc, 0, true), at);
+            ui.postAtTime(() -> key(sc, 0, false), at + ZOOM_TAP_MS);
+        }
     }
 
     @Override public void key(int sdlScancode, int sdlKeycode, boolean down) {
@@ -405,7 +422,7 @@ public class NativeGameOverlay extends FrameLayout
     // ------------------------------------------------------------------ physical mouse
 
     // A real mouse is taken whole, as the touches are: its moves drive our cursor, its wheel the
-    // zoom keys, its buttons our clicks. Left to the player, its events arrive in window
+    // managed scroll bridge, its buttons our clicks. Left to the player, its events arrive in window
     // coordinates (off by the margins of a boxed player) and in between our injected clicks,
     // which then get lost (S25, 2026-10-11).
     private static boolean isMouse(MotionEvent e) {
@@ -421,7 +438,8 @@ public class NativeGameOverlay extends FrameLayout
                 return true;
             case MotionEvent.ACTION_SCROLL: {
                 float v = e.getAxisValue(MotionEvent.AXIS_VSCROLL);
-                if (v != 0) pinchScroll(gameX(e.getX()), gameY(e.getY()), v > 0 ? 1 : -1);
+                controls.moveCursorTo(e.getX(), e.getY());
+                scrollWheel(gameX(e.getX()) - boxLeft, gameY(e.getY()) - boxTop, v);
                 return true;
             }
             default:

@@ -14,6 +14,9 @@
     <string name="incomplete_game_title">Arquivos do jogo incompletos</string>
     <string name="incomplete_game_msg">Esta instância não pode iniciar: estes arquivos do jogo estão faltando ou incompletos:\n\n%1$s\n\nNormalmente isso significa que um download não terminou. Baixe o jogo de novo usando o MESMO nome de instância e ele continua de onde parou.</string>
     <string name="delete_instance">Excluir instância</string>
+    <string name="instance_shortcut">Adicionar à tela inicial</string>
+    <string name="instance_shortcut_long">RimWorld — %1$s</string>
+    <string name="instance_shortcut_unsupported">Este launcher não permite que apps adicionem atalhos.</string>
     <string name="more_options">Mais opções</string>
     <string name="delete_instance_confirm">Excluir a instância \"%1$s\" e todos os seus arquivos? Isso não pode ser desfeito.</string>
     <string name="log">Registro</string>

@@ -45,6 +45,36 @@ public class LauncherActivity extends AppCompatActivity {
     private static final String STATE_LOG_INSTANCE = "logExportInstance";
     private String pendingLogInstanceName;
 
+    /**
+     * A home-screen shortcut (InstanceShortcuts): start this instance right away, as a tap on its
+     * Play button would, without showing the launcher first. Read by LauncherFragment.
+     */
+    public static final String ACTION_LAUNCH_INSTANCE = "com.rimdroid.action.LAUNCH_INSTANCE";
+    public static final String EXTRA_LAUNCH_INSTANCE = "instance";
+    private String pendingLaunchInstance;
+
+    /** The instance a shortcut asked to start, once; null when there is none. */
+    public String takeLaunchRequest() {
+        String name = pendingLaunchInstance;
+        pendingLaunchInstance = null;
+        return name;
+    }
+
+    private void readLaunchRequest(Intent intent) {
+        if (intent != null && ACTION_LAUNCH_INSTANCE.equals(intent.getAction()))
+            pendingLaunchInstance = intent.getStringExtra(EXTRA_LAUNCH_INSTANCE);
+    }
+
+    @Override
+    protected void onNewIntent(Intent intent) {
+        super.onNewIntent(intent);
+        setIntent(intent);
+        readLaunchRequest(intent);
+        // Back to the main screen, where LauncherFragment picks the request up on resume.
+        if (pendingLaunchInstance != null && navController != null)
+            navController.popBackStack(R.id.launcher_fragment, false);
+    }
+
     private final ActivityResultLauncher<String[]> modZipPicker =
             registerForActivityResult(new ActivityResultContracts.OpenDocument(),
                     uri -> { if (uri != null) ContentInstaller.showTargetDialog(this, uri); });
@@ -75,6 +105,8 @@ public class LauncherActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         if (savedInstanceState != null)
             pendingLogInstanceName = savedInstanceState.getString(STATE_LOG_INSTANCE);
+        else
+            readLaunchRequest(getIntent());   // a fresh start from a shortcut, not a recreation
 
         binding = ActivityLauncherBinding.inflate(getLayoutInflater());
         setContentView(binding.getRoot());
