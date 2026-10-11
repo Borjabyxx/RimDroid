@@ -18,6 +18,8 @@ static void mock_get_integer(unsigned int name, int* value) {
         case 0x821B: *value = 4; break;
         case 0x821C: *value = mock_minor; break;
         case RD_GL_TEXTURE_BINDING_2D: *value = binding; break;
+        case RD_GL_MAX_TEXTURE_SIZE: *value = 16384; break;
+        case RD_GL_MAX_RENDERBUFFER_SIZE: *value = 4096; break;
         default: *value = 123;
     }
 }
@@ -88,6 +90,15 @@ static void check_enumeration(const char* expected, int count) {
     assert(!strcmp((const char*)get_i(0x1F02, 0), "passthrough"));
     get_int(0x0BA2, &n);
     assert(n == 123);
+    /* The max texture size is capped (8192 by default); smaller real values pass through. */
+    get_int(RD_GL_MAX_TEXTURE_SIZE, &n);
+    assert(n == 8192);
+    get_int(RD_GL_MAX_RENDERBUFFER_SIZE, &n);
+    assert(n == 4096);
+    max_texture_size = 0;   /* RIMDROID_GL_MAX_TEX_SIZE=0: the driver's real value */
+    get_int(RD_GL_MAX_TEXTURE_SIZE, &n);
+    assert(n == 16384);
+    max_texture_size = 8192;
     assert(binding == 9 && deletes == 1 && storage_calls == 1);
     /* Repeated initialization must not allocate or change the snapshot. */
     const unsigned char* snapshot = get(RD_GL_EXTENSIONS);

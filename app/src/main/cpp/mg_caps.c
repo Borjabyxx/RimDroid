@@ -19,6 +19,15 @@
 #define RD_GL_TEXTURE_BINDING_2D 0x8069u
 #define RD_GL_TEXTURE_IMMUTABLE_FORMAT 0x912Fu
 #define RD_GL_TEXTURE_IMMUTABLE_LEVELS 0x82DFu
+#define RD_GL_MAX_TEXTURE_SIZE 0x0D33u
+#define RD_GL_MAX_RENDERBUFFER_SIZE 0x84E8u
+
+/* Largest texture size the guest is told about. RimWorld 1.6 sizes its static texture atlases by
+ * the GPU's maximum: with big content mods (Medieval Overhaul + all DLC) it then bakes a 16384x8192
+ * RGBA8 render target, 512 MB in one allocation, and loading stops there on 8 GB phones. At 8192 it
+ * packs the same textures into several smaller atlases, as it does for everyone else.
+ * RIMDROID_GL_MAX_TEX_SIZE overrides it; 0 reports the driver's real value. */
+static int max_texture_size = 8192;
 
 static const unsigned char* (*mg_get_string)(unsigned int);
 static const unsigned char* (*mg_get_string_i)(unsigned int, unsigned int);
@@ -52,6 +61,11 @@ static const unsigned char* caps_get_string_i(unsigned int name, unsigned int in
 }
 
 static void caps_get_integer(unsigned int name, int* value) {
+    if (name == RD_GL_MAX_TEXTURE_SIZE || name == RD_GL_MAX_RENDERBUFFER_SIZE) {
+        mg_get_integer(name, value);
+        if (value && max_texture_size > 0 && *value > max_texture_size) *value = max_texture_size;
+        return;
+    }
     if (name != RD_GL_NUM_EXTENSIONS) { mg_get_integer(name, value); return; }
     log_query();
     if (value) *value = extension_count;
@@ -174,7 +188,15 @@ int rimdroid_mg_caps_init(void* handle, rd_mg_resolver resolve) {
     extension_tokens = tokens;
     extension_items = items;
     extension_count = count;
+
+    const char* cap = getenv("RIMDROID_GL_MAX_TEX_SIZE");
+    if (cap && *cap) max_texture_size = atoi(cap);
+    int real_max = 0;
+    mg_get_integer(RD_GL_MAX_TEXTURE_SIZE, &real_max);
+
     atomic_store_explicit(&ready, 1, memory_order_release);
     LOGI("MG CAPS: profile=4.0+ARB_texture_storage, BPTC hidden; shrink still needs Unity TexStorage uploads");
+    LOGI("MG CAPS: max texture size %d reported as %d (RIMDROID_GL_MAX_TEX_SIZE, 0 = real)",
+         real_max, (max_texture_size > 0 && real_max > max_texture_size) ? max_texture_size : real_max);
     return 1;
 }
