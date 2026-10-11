@@ -40,6 +40,10 @@ public final class NativeEngine {
     private static final String EXTRA_OVERLAY = "rimdroid.overlay";
     /** The instance being played, for the overlay (controls layout and settings). */
     public static final String EXTRA_INSTANCE = "rimdroid.instance";
+    /** Width/height of the box the player draws in, centred with black margins; 0 = the whole screen. */
+    public static final String EXTRA_BOX_ASPECT = "rimdroid.boxAspect";
+    /** The launch config text, the first thing in the game process's log (NativeLog). */
+    public static final String EXTRA_LAUNCH_CONFIG = "rimdroid.launchConfig";
 
     /** RimWorld 1.6's Linux data folder inside an instance. */
     private static final String DATA_DIR = "RimWorldLinux_Data";
@@ -115,6 +119,13 @@ public final class NativeEngine {
         boolean noSecondary = vkCompat == com.rimdroid.InstanceSettings.VK_COMPAT_ON
                 || (vkCompat == com.rimdroid.InstanceSettings.VK_COMPAT_AUTO && needsVulkanCompat());
         Log.i(TAG, "vulkan compatibility " + vkCompat + " -> no secondary command buffers: " + noSecondary);
+        // Render resolution (Settings → Video), as on the box64 engine: the 720p presets render
+        // 1280x720 / 960x720 into a box of that shape with black margins (the on-screen buttons can
+        // sit there), the percentage preset that share of the whole screen. Fewer pixels is the main FPS lever on a
+        // weak GPU, and the game's UI grows with it. Applied by il2mono in place of the size the game
+        // asks for (Screen.SetResolution). Empty = the screen's full size.
+        int[] renderSize = renderSize(context, is);
+        env.add("RIMDROID_RENDER_SIZE=" + (renderSize != null ? renderSize[0] + "x" + renderSize[1] : ""));
         // The game's own texture compression: on. Unity's Android player compresses to the GPU's
         // mobile format itself (0.35 GB less graphics memory on the S25, 2026-10-11); the BC shader
         // trouble that keeps it off under box64 does not exist here.
@@ -124,12 +135,31 @@ public final class NativeEngine {
         addUserEnvironment(is, env);
         Log.i(TAG, "native engine environment: " + launchSummary(env));
 
+        // As rimdroid.log's header for the box64 launch: what a report needs to make sense of the run.
+        String launchConfig = "=== RimDroid launch config (native engine) ===\n"
+                + "instance      : " + instance.getName() + "\n"
+                + "app version   : " + com.rimdroid.BuildConfig.VERSION_NAME + " (" + com.rimdroid.BuildConfig.VERSION_CODE + ")\n"
+                + "device        : " + android.os.Build.MANUFACTURER + " " + android.os.Build.MODEL
+                + " (Android " + android.os.Build.VERSION.RELEASE + ", API " + android.os.Build.VERSION.SDK_INT + ")\n"
+                + "soc           : " + com.rimdroid.GameLauncher.deviceSoc() + "\n"
+                + "gpu           : " + com.rimdroid.GpuInfo.query().renderer + "\n"
+                + "engine        : native (Unity's Android player, Vulkan; C# on ARM64 Mono)\n"
+                + "vulkan compat : " + vkCompat + " -> no secondary command buffers: " + noSecondary + "\n"
+                + "texture tier  : " + tier + " -> mipmap limit " + (tier == com.rimdroid.InstanceSettings.TEX_ULTRA ? 2
+                        : tier == com.rimdroid.InstanceSettings.TEX_LOW ? 1 : 0) + "\n"
+                + "texture compr : game setting pinned on\n"
+                + "render size   : " + (renderSize != null ? renderSize[0] + "x" + renderSize[1] : "screen") + "\n"
+                + "extra env     : " + userEnvironmentSummary(is) + "\n"
+                + "unity args    : (see below)\n"
+                + "active mods   : " + com.rimdroid.GameLauncher.readActiveMods(instance) + "\n";
+
         Intent intent = new Intent();
         intent.setClassName(context.getPackageName(), ACTIVITY);
         intent.putExtra(EXTRA_DATA_ARCHIVE, archive.getAbsolutePath());
         intent.putExtra(EXTRA_ENV, env.toArray(new String[0]));
         intent.putExtra(EXTRA_INSTANCE, instance.getName());
         intent.putExtra(EXTRA_OVERLAY, com.rimdroid.NativeGameOverlay.class.getName());
+        intent.putExtra(EXTRA_BOX_ASPECT, boxAspect(is));
         // Unity's own command line (the player reads the "unity" extra). Vulkan always: the game's
         // Linux build carries desktop GL and Vulkan shaders but none for OpenGL ES, which the Android
         // player would otherwise pick. Then the instance's environment field, for tests:
@@ -143,8 +173,48 @@ public final class NativeEngine {
             }
         }
         intent.putExtra("unity", unityArgs.toString());
+        intent.putExtra(EXTRA_LAUNCH_CONFIG, launchConfig.replace("(see below)", unityArgs.toString()));
         intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
         return intent;
+    }
+
+    /**
+     * The size the player renders at, {width, height} in landscape, or null for the screen's own.
+     * A 720p preset: 720 lines, the screen's shape. Otherwise the render-scale percentage of the
+     * screen, raised to the per-device floor as on the box64 engine; 100% means no override.
+     */
+    private static int[] renderSize(Context context, com.rimdroid.InstanceSettings is) {
+        android.hardware.display.DisplayManager dm =
+                (android.hardware.display.DisplayManager) context.getSystemService(Context.DISPLAY_SERVICE);
+        android.view.Display display = dm != null ? dm.getDisplay(android.view.Display.DEFAULT_DISPLAY) : null;
+        if (display == null) return null;
+        android.graphics.Point size = new android.graphics.Point();
+        display.getRealSize(size);
+        int sw = Math.max(size.x, size.y), sh = Math.min(size.x, size.y);   // landscape
+        if (sw <= 0 || sh <= 0) return null;
+        int mode = is.getFixedResMode();
+        // The 720p presets: the box64 engine's exact buffer, shown in a box of that shape with black
+        // margins around it (NativeUnityActivity, EXTRA_BOX_ASPECT).
+        if (mode == com.rimdroid.InstanceSettings.FIXED_720_16_9) return new int[] { 1280, 720 };
+        if (mode == com.rimdroid.InstanceSettings.FIXED_720_4_3) return new int[] { 960, 720 };
+        float scale = is.getEffectiveRenderScale(sw, sh);
+        if (scale >= 0.995f) return null;
+        return new int[] { Math.round(sw * scale), Math.round(sh * scale) };
+    }
+
+    /** The shape of the black-margin box for the 720p presets (16:9 or 4:3), 0 = fill the screen. */
+    public static float boxAspect(com.rimdroid.InstanceSettings is) {
+        int mode = is.getFixedResMode();
+        if (mode == com.rimdroid.InstanceSettings.FIXED_720_16_9) return 16f / 9f;
+        if (mode == com.rimdroid.InstanceSettings.FIXED_720_4_3) return 4f / 3f;
+        return 0f;
+    }
+
+    /** The instance's environment field as one line for the launch config, "(none)" when empty. */
+    private static String userEnvironmentSummary(com.rimdroid.InstanceSettings is) {
+        List<String> env = new ArrayList<>();
+        addUserEnvironment(is, env);
+        return env.isEmpty() ? "(none)" : String.join(" ", env);
     }
 
     /**

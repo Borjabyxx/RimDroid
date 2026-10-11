@@ -151,6 +151,8 @@ typedef struct
                                     // RimWorld finds Data/ and Mods/ next to its parent, as on Linux
     int texture_mipmap_limit;       // QualitySettings.globalTextureMipmapLimit: top mips every texture
                                     // drops (1 = half size, 2 = a quarter), 0 = full
+    int render_width, render_height; // the size to render at in place of what the game asks for
+                                    // (the launcher's resolution preset); 0 = the screen's own
 } Il2MonoConfig;
 
 extern Il2MonoConfig il2mono_cfg;

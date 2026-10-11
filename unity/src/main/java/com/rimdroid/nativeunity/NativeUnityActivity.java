@@ -38,6 +38,11 @@ public class NativeUnityActivity extends Activity implements IUnityPlayerLifecyc
      * the other way round. Touches the overlay does not take reach the player.
      */
     public static final String EXTRA_OVERLAY = "rimdroid.overlay";
+    /**
+     * Intent extra: width/height of the box the player draws in, centred on a black screen (the
+     * launcher's "black margins" resolution presets, as on the box64 engine); 0 = the whole screen.
+     */
+    public static final String EXTRA_BOX_ASPECT = "rimdroid.boxAspect";
 
     // The overlay; a physical keyboard's and gamepad's events are offered to it first
     // (View.OnKeyListener / OnGenericMotionListener).
@@ -52,11 +57,32 @@ public class NativeUnityActivity extends Activity implements IUnityPlayerLifecyc
         getIntent().putExtra("unity", getIntent().getStringExtra("unity"));
 
         mUnityPlayer = new UnityPlayer(this, this);
-        setContentView(mUnityPlayer);
+        // The player in a box (or the whole screen), the overlay over everything: its buttons can
+        // sit on the margins, and its touches never reach the player.
+        final float boxAspect = getIntent().getFloatExtra(EXTRA_BOX_ASPECT, 0f);
+        FrameLayout root = new FrameLayout(this);
+        root.setBackgroundColor(0xFF000000);
+        root.addView(mUnityPlayer, new FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT));
+        if (boxAspect > 0f) {
+            root.addOnLayoutChangeListener((v, l, t, r, b, ol, ot, or, ob) -> {
+                int w = r - l, h = b - t;
+                if (w <= 0 || h <= 0) return;
+                int boxH = h, boxW = Math.round(h * boxAspect);
+                if (boxW > w) { boxW = w; boxH = Math.round(w / boxAspect); }
+                FrameLayout.LayoutParams lp = (FrameLayout.LayoutParams) mUnityPlayer.getLayoutParams();
+                if (lp.width == boxW && lp.height == boxH) return;
+                lp.width = boxW;
+                lp.height = boxH;
+                lp.gravity = android.view.Gravity.CENTER;
+                mUnityPlayer.post(() -> mUnityPlayer.setLayoutParams(lp));
+            });
+        }
+        setContentView(root);
         mUnityPlayer.requestFocus();
         overlay = createOverlay(getIntent().getStringExtra(EXTRA_OVERLAY));
         if (overlay != null) {
-            mUnityPlayer.addView(overlay, new FrameLayout.LayoutParams(
+            root.addView(overlay, new FrameLayout.LayoutParams(
                     FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT));
         }
         keepScreenOn();
@@ -161,9 +187,16 @@ public class NativeUnityActivity extends Activity implements IUnityPlayerLifecyc
         }
     }
 
-    /** The overlay's input (mouse and keyboard events made from the on-screen controls) into the player. */
+    /**
+     * The overlay's input (mouse and keyboard events made from the on-screen controls) into the
+     * player. Positions come in window coordinates; the player wants its own, so a boxed player's
+     * offset is taken off.
+     */
     public boolean injectInputEvent(InputEvent event) {
-        return mUnityPlayer != null && mUnityPlayer.injectEvent(event);
+        if (mUnityPlayer == null) return false;
+        if (event instanceof MotionEvent && (mUnityPlayer.getLeft() != 0 || mUnityPlayer.getTop() != 0))
+            ((MotionEvent) event).offsetLocation(-mUnityPlayer.getLeft(), -mUnityPlayer.getTop());
+        return mUnityPlayer.injectEvent(event);
     }
 
     // The NDK does not deliver ACTION_MULTIPLE key events; inject them.

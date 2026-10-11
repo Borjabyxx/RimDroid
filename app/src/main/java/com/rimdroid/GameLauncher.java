@@ -33,7 +33,7 @@ public class GameLauncher {
     /** Device SoC fingerprint for the log: chip maker/model (API 31+) + the always-available hardware
      *  string. Together with the GL_RENDERER line (GPU) this identifies a tester's device at a glance —
      *  no more guessing which device a log came from. */
-    private static String deviceSoc() {
+    public static String deviceSoc() {
         StringBuilder sb = new StringBuilder();
         if (android.os.Build.VERSION.SDK_INT >= 31)
             sb.append(android.os.Build.SOC_MANUFACTURER).append(' ').append(android.os.Build.SOC_MODEL).append(' ');
@@ -45,7 +45,7 @@ public class GameLauncher {
      *  config (rimdroid.log) so we have the mod set + ORDER even when the game crashes DURING mod load
      *  (RimWorld's own mod-list log is lost to such a crash — exactly the case that hides mod/Harmony bugs).
      *  Reveals at a glance: is our Harmony present, is it FIRST, how many mods, wrong order. */
-    private static String readActiveMods(GameInstance gi) {
+    public static String readActiveMods(GameInstance gi) {
         try {
             java.io.File cfg = new java.io.File(gi.getUserDataDir(), "Config/ModsConfig.xml");
             if (!cfg.isFile()) return "(ModsConfig.xml not found — run the game once)";

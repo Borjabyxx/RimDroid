@@ -28,6 +28,7 @@ public final class LogExporter {
 
     /** Ship only this much of the end of a sigsegv_fault log (a fault storm can grow it to tens of MB). */
     private static final long SIGSEGV_TAIL_BYTES = 256 * 1024;
+    private static final long NATIVE_LOG_TAIL_BYTES = 2L * 1024 * 1024;
 
     private LogExporter() {}
 
@@ -65,6 +66,11 @@ public final class LogExporter {
                 // crash locator only the end of the file matters.
                 new File(gamePath, "sigsegv_fault.log"),
                 new File(gamePath, "sigsegv_fault.prev.log"),
+                // The native engine's own log (game.NativeLog): the game process's logcat for this run
+                // and the one before, with the launch config at the top. Nothing else in this list
+                // comes from that engine: rimdroid.log, box64.log and Player.log are the box64 launch's.
+                new File(gamePath, com.rimdroid.game.NativeLog.FILE),
+                new File(gamePath, com.rimdroid.game.NativeLog.PREV),
                 new File(configDir, "Prefs.xml"),
                 new File(configDir, "ModsConfig.xml"),   // active mods + load order — vital for mod/Harmony issues
                 crashLog,
@@ -76,9 +82,12 @@ public final class LogExporter {
                 if (f == null || !f.isFile()) continue;
                 zos.putNextEntry(new ZipEntry(f.getName()));
                 try (FileInputStream in = new FileInputStream(f)) {
-                    // Tail cap for the per-fault SIGSEGV logs (see the candidates note above).
-                    if (f.getName().startsWith("sigsegv_fault") && f.length() > SIGSEGV_TAIL_BYTES) {
-                        long skip = f.length() - SIGSEGV_TAIL_BYTES;
+                    // Tail cap for the per-fault SIGSEGV logs (see the candidates note above) and for
+                    // the native engine's logs (a long session is mostly frames; the end has the crash).
+                    long cap = f.getName().startsWith("sigsegv_fault") ? SIGSEGV_TAIL_BYTES
+                            : f.getName().startsWith("native_engine") ? NATIVE_LOG_TAIL_BYTES : Long.MAX_VALUE;
+                    if (f.length() > cap) {
+                        long skip = f.length() - cap;
                         while (skip > 0) {
                             long s = in.skip(skip);
                             if (s <= 0) break;

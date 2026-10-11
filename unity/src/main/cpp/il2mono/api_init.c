@@ -227,12 +227,17 @@ static void set_full_screen_mode_override(int32_t mode)
         g_orig_set_full_screen_mode(FULL_SCREEN_MODE_FULL_SCREEN_WINDOW);
 }
 
+// The launcher's render resolution (RIMDROID_RENDER_SIZE) replaces the size the game asks for: fewer
+// pixels on a weak GPU, a bigger UI. The game asks once at start-up (its Prefs); if it never does
+// (Prefs already at the screen's size), the size is applied once from the main thread below.
 static void set_resolution_override(int32_t width, int32_t height, int32_t mode, void* refresh_rate)
 {
-    if (mode != FULL_SCREEN_MODE_FULL_SCREEN_WINDOW)
-        LOGI("Screen.SetResolution(%d x %d, mode %d) -> full screen window", width, height, mode);
+    int32_t w = il2mono_cfg.render_width > 0 ? il2mono_cfg.render_width : width;
+    int32_t h = il2mono_cfg.render_height > 0 ? il2mono_cfg.render_height : height;
+    if (mode != FULL_SCREEN_MODE_FULL_SCREEN_WINDOW || w != width || h != height)
+        LOGI("Screen.SetResolution(%d x %d, mode %d) -> %d x %d, full screen window", width, height, mode, w, h);
     if (g_orig_set_resolution)
-        g_orig_set_resolution(width, height, FULL_SCREEN_MODE_FULL_SCREEN_WINDOW, refresh_rate);
+        g_orig_set_resolution(w, h, FULL_SCREEN_MODE_FULL_SCREEN_WINDOW, refresh_rate);
 }
 
 // Desktop games use targetFrameRate -1 for "unlimited"; on Android -1 means the platform default,
@@ -283,6 +288,14 @@ static int32_t platform_override(void)
         {
             g_set_texture_mipmap_limit(il2mono_cfg.texture_mipmap_limit);
             LOGI("QualitySettings.globalTextureMipmapLimit -> %d", il2mono_cfg.texture_mipmap_limit);
+        }
+        if (g_orig_set_resolution && il2mono_cfg.render_width > 0)
+        {
+            // UnityEngine.RefreshRate { uint numerator; uint denominator; }: 0/1 = the default rate.
+            struct { uint32_t numerator, denominator; } rate = { 0, 1 };
+            g_orig_set_resolution(il2mono_cfg.render_width, il2mono_cfg.render_height,
+                                  FULL_SCREEN_MODE_FULL_SCREEN_WINDOW, &rate);
+            LOGI("render size -> %d x %d (launcher preset)", il2mono_cfg.render_width, il2mono_cfg.render_height);
         }
     }
     return RUNTIME_PLATFORM_LINUX_PLAYER;

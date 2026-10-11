@@ -50,6 +50,8 @@ public class NativeGameOverlay extends FrameLayout
     private final Handler ui = new Handler(Looper.getMainLooper());
     private java.lang.reflect.Method inject;   // NativeUnityActivity.injectInputEvent(InputEvent)
     private boolean dragPanEnabled = true;     // per-instance (Settings → "Drag the map to pan")
+    private float boxAspect;                   // the player's box for the 720p presets, 0 = the whole screen
+    private int boxLeft, boxTop, boxW, boxH;   // where the player draws, in this view's coordinates
 
     // HUD, global setting (Settings → Frame rate): off, the classic FPS counter or the full bar.
     private TextView fpsText;
@@ -63,6 +65,12 @@ public class NativeGameOverlay extends FrameLayout
         super(context);
         String instanceName = context instanceof Activity
                 ? ((Activity) context).getIntent().getStringExtra(NativeEngine.EXTRA_INSTANCE) : null;
+        // The game's own log for "Report a bug": first, so it has as much of the start as possible.
+        AppStorage storage = AppStorage.getSingleton();
+        if (storage != null && instanceName != null && context instanceof Activity) {
+            com.rimdroid.game.NativeLog.start(storage.getInstanceDir(instanceName),
+                    ((Activity) context).getIntent().getStringExtra(NativeEngine.EXTRA_LAUNCH_CONFIG));
+        }
         if (context instanceof Activity) {
             try {
                 inject = context.getClass().getMethod("injectInputEvent", InputEvent.class);
@@ -70,7 +78,11 @@ public class NativeGameOverlay extends FrameLayout
                 Log.e(TAG, "the activity cannot inject input events", e);
             }
         }
-        if (instanceName != null) dragPanEnabled = new InstanceSettings(instanceName).isDragPan();
+        if (instanceName != null) {
+            InstanceSettings is = new InstanceSettings(instanceName);
+            dragPanEnabled = is.isDragPan();
+            boxAspect = NativeEngine.boxAspect(is);
+        }
 
         InputSink.setBackend(this);
         controls = new InputControlsView(context, 1f, instanceName);   // the player fills the screen
@@ -85,9 +97,18 @@ public class NativeGameOverlay extends FrameLayout
         if (hud == LauncherPreferences.HUD_FULL) addPerfBar(context);
     }
 
+    // The same box NativeUnityActivity gives the player: the cursor stays inside it and taps on the
+    // margins clamp to its edge, as GameActivity does for the box64 engine.
     @Override protected void onSizeChanged(int w, int h, int oldw, int oldh) {
         super.onSizeChanged(w, h, oldw, oldh);
-        controls.setGameRect(0, 0, w, h);
+        boxLeft = 0; boxTop = 0; boxW = w; boxH = h;
+        if (boxAspect > 0f && w > 0 && h > 0) {
+            boxH = h; boxW = Math.round(h * boxAspect);
+            if (boxW > w) { boxW = w; boxH = Math.round(w / boxAspect); }
+            boxLeft = (w - boxW) / 2;
+            boxTop = (h - boxH) / 2;
+        }
+        controls.setGameRect(boxLeft, boxTop, boxW, boxH);
     }
 
     // ------------------------------------------------------------------ input into the player
@@ -256,8 +277,8 @@ public class NativeGameOverlay extends FrameLayout
     private final Runnable panIdleRelease = this::releasePan;
     private final Runnable longPressRunnable = this::longPress;
 
-    private int gameX(float x) { return Math.round(Math.max(0, Math.min(getWidth() - 1, x))); }
-    private int gameY(float y) { return Math.round(Math.max(0, Math.min(getHeight() - 1, y))); }
+    private int gameX(float x) { return Math.round(Math.max(boxLeft, Math.min(boxLeft + boxW - 1, x))); }
+    private int gameY(float y) { return Math.round(Math.max(boxTop, Math.min(boxTop + boxH - 1, y))); }
 
     private void click(int button, int x, int y) {
         controls.moveCursorTo(x, y);
