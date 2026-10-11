@@ -42,6 +42,7 @@ public class WikiFragment extends Fragment {
             case "ru": wikiFile = "index_ru.html"; break;
             case "es": wikiFile = "index_es.html"; break;
             case "pt": wikiFile = "index_pt.html"; break;
+            case "zh": wikiFile = "index_zh.html"; break;
             default:   wikiFile = "index.html";
         }
         String section = getArguments() != null ? getArguments().getString(ARG_SECTION) : null;
