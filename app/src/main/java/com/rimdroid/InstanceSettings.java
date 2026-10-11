@@ -145,8 +145,17 @@ public class InstanceSettings {
     // old "tex_shrink" was a boolean, reading it as an int would throw. ---
     public static final int TEX_NONE = 0, TEX_LOW = 1, TEX_ULTRA = 2;
 
+    /**
+     * Low for a new instance: on the native engine it is the difference between loading and the
+     * low-memory killer on an 8 GB phone with a big mod list (TECNO, 86 mods, 2026-10-11), and it
+     * costs nothing visible. An instance played before the default changed keeps what it had (No),
+     * stored the first time it is asked, so it never changes behind the player's back.
+     */
     public int getTexTier() {
-        return p.getInt(pfx + "tex_tier", TEX_NONE);
+        if (p.contains(pfx + "tex_tier")) return p.getInt(pfx + "tex_tier", TEX_LOW);
+        int tier = hasBeenPlayed() ? TEX_NONE : TEX_LOW;
+        setTexTier(tier);
+        return tier;
     }
 
     public void setTexTier(int tier) {
