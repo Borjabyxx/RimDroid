@@ -284,19 +284,59 @@ public final class IconPacks {
     /** Copies one pack icon into control_icons/ and shows it on the button. */
     public static boolean setIcon(@NonNull Context context, @NonNull Pack pack, @NonNull String icon,
                                   @NonNull ButtonElement button) {
+        String fileName = copyIcon(context, pack, icon);
+        if (fileName == null) return false;
+        button.setIcon(fileName, !pack.tint);
+        return true;
+    }
+
+    /** Writes one pack icon into control_icons/; its file name there, or null. */
+    @Nullable
+    private static String copyIcon(@NonNull Context context, @NonNull Pack pack, @NonNull String icon) {
         File dir = iconsDir();
-        if (!dir.isDirectory() && !dir.mkdirs()) return false;
+        if (!dir.isDirectory() && !dir.mkdirs()) return null;
         Bitmap bmp = load(context, pack, icon);
-        if (bmp == null) return false;
+        if (bmp == null) return null;
         String fileName = "pack_" + pack.id + "_" + icon + ".png";
         try (FileOutputStream out = new FileOutputStream(new File(dir, fileName))) {
             bmp.compress(Bitmap.CompressFormat.PNG, 100, out);
         } catch (IOException e) {
-            return false;
+            return null;
         }
         CACHE.remove(fileName);   // a re-imported pack may have changed the picture
-        button.setIcon(fileName, !pack.tint);
-        return true;
+        return fileName;
+    }
+
+    /**
+     * The same as {@link #apply} on an instance's saved layout, without the editor (the drawer's
+     * Button icons screen). An instance still on the bundled default gets that default first.
+     * Returns how many buttons got an icon, or -1 when the layout could not be read.
+     */
+    public static int applyToInstance(@NonNull Context context, @NonNull Pack pack, @NonNull String instanceName) {
+        com.rimdroid.InstanceSettings settings = new com.rimdroid.InstanceSettings(instanceName);
+        String json = settings.getControlsJson();
+        List<ControlElementDescription> layout = json != null ? InputControlsView.parse(json) : null;
+        if (layout == null || layout.isEmpty()) {
+            try (InputStream in = context.getAssets().open(InputControlsView.DEFAULT_ASSET)) {
+                layout = InputControlsView.parse(new String(readAll(in), StandardCharsets.UTF_8));
+            } catch (IOException e) {
+                return -1;
+            }
+        }
+        if (layout == null) return -1;
+        int applied = 0;
+        for (ControlElementDescription d : layout) {
+            if (!"BUTTON".equals(d.type) || d.bindings == null || d.bindings.length == 0) continue;
+            String icon = actionFor(Binding.fromName(d.bindings[0], null));
+            if (icon == null || !pack.icons.contains(icon)) continue;
+            String fileName = copyIcon(context, pack, icon);
+            if (fileName == null) continue;
+            d.icon = fileName;
+            d.iconNoTint = !pack.tint;
+            applied++;
+        }
+        if (applied > 0) settings.setControlsJson(new com.google.gson.Gson().toJson(layout));
+        return applied;
     }
 
     // ---- pictures -------------------------------------------------------------------------
@@ -304,17 +344,43 @@ public final class IconPacks {
     // Decoded button icons by file name; a layout has a few dozen at most.
     private static final LruCache<String, Bitmap> CACHE = new LruCache<>(64);
 
-    /** A button icon by its file name in control_icons/, or null when it is missing. */
+    /**
+     * A button icon by its file name in control_icons/, or null when it is missing. A built-in pack's
+     * icon ("pack_&lt;id&gt;_&lt;icon&gt;.png") that was never copied there — the bundled default
+     * layout ships with such names — is read straight from the APK's assets.
+     */
     @Nullable
     public static Bitmap loadButtonIcon(@Nullable String fileName) {
         if (fileName == null || fileName.isEmpty()) return null;
         Bitmap b = CACHE.get(fileName);
         if (b != null) return b;
         File f = new File(iconsDir(), new File(fileName).getName());
-        if (!f.isFile()) return null;
-        b = BitmapFactory.decodeFile(f.getAbsolutePath());
+        if (f.isFile()) b = BitmapFactory.decodeFile(f.getAbsolutePath());
+        else b = loadBuiltInByFileName(fileName);
         if (b != null) CACHE.put(fileName, b);
         return b;
+    }
+
+    @Nullable
+    private static Bitmap loadBuiltInByFileName(String fileName) {
+        if (!fileName.startsWith("pack_") || !fileName.endsWith(".png")) return null;
+        Context app = com.rimdroid.RimDroidApplication.APP;
+        if (app == null) return null;
+        try {
+            String[] ids = app.getAssets().list(ASSET_DIR);
+            if (ids == null) return null;
+            for (String id : ids) {
+                String prefix = "pack_" + id + "_";
+                if (!fileName.startsWith(prefix)) continue;
+                String icon = fileName.substring(prefix.length(), fileName.length() - 4);
+                try (InputStream in = app.getAssets().open(ASSET_DIR + "/" + id + "/" + icon + ".png")) {
+                    return BitmapFactory.decodeStream(in);
+                } catch (IOException ignored) {
+                }
+            }
+        } catch (IOException ignored) {
+        }
+        return null;
     }
 
     @Nullable

@@ -64,14 +64,6 @@ public class LauncherActivity extends AppCompatActivity {
                         else pendingLogInstanceName = null;
                     });
 
-    private final ActivityResultLauncher<String> exportLayoutLauncher =
-            registerForActivityResult(new ActivityResultContracts.CreateDocument("application/json"),
-                    uri -> { if (uri != null) exportLayout(uri); });
-
-    private final ActivityResultLauncher<String[]> importLayoutLauncher =
-            registerForActivityResult(new ActivityResultContracts.OpenDocument(),
-                    uri -> { if (uri != null) importLayout(uri); });
-
     /** Which user-data parts the pending export/import targets — saves vs. settings (set per menu item). */
     private String[] pendingDataParts = { GameDataTransfer.SAVES, GameDataTransfer.CONFIG };
     private static final String[] ZIP_MIME =
@@ -152,13 +144,19 @@ public class LauncherActivity extends AppCompatActivity {
                 chooseInstanceThen(gi -> { pendingLogInstanceName = gi.getName();
                         exportLogsLauncher.launch("rimdroid_logs_" + timestamp() + ".zip"); });
                 return true;
-            } else if (id == R.id.action_export_layout) {
-                chooseInstanceThen(gi -> { pendingInstance = gi;
-                        exportLayoutLauncher.launch("rimdroid_controls.json"); });
+            } else if (id == R.id.action_edit_controls) {
+                // Controls are per instance: the editor asks which one when there are several.
+                chooseInstanceThen(gi -> {
+                    Intent i = new Intent(this, ControlsEditorActivity.class);
+                    i.putExtra(ControlsEditorActivity.EXTRA_INSTANCE_NAME, gi.getName());
+                    startActivity(i);
+                });
                 return true;
-            } else if (id == R.id.action_import_layout) {
-                chooseInstanceThen(gi -> { pendingInstance = gi; importLayoutLauncher.launch(new String[]{
-                        "application/json", "text/plain", "application/octet-stream"}); });
+            } else if (id == R.id.action_icon_packs) {
+                navController.navigate(R.id.action_open_icon_packs);   // button icon packs, applied per instance
+                return true;
+            } else if (id == R.id.action_controls_transfer) {
+                navController.navigate(R.id.action_open_controls_transfer);   // import / export, one screen
                 return true;
             } else if (id == R.id.action_bug_report) {
                 sendBugReport();
@@ -350,6 +348,8 @@ public class LauncherActivity extends AppCompatActivity {
         if (destinationId == R.id.cloud_saves_fragment)     return "saves";
         if (destinationId == R.id.settings_fragment
                 || destinationId == R.id.driver_fragment)   return "renderers";
+        if (destinationId == R.id.icon_packs_fragment
+                || destinationId == R.id.controls_transfer_fragment) return "controls";
         return "quick-start";   // the main screen, app settings, and any screen added later
     }
 
@@ -660,62 +660,6 @@ public class LauncherActivity extends AppCompatActivity {
                     ? "Logs: " + android.text.TextUtils.join(", ", fr.items)
                         + " (" + (fr.bytes / 1024) + " KB)"
                     : "Export failed: " + fr.error));
-        }).start();
-    }
-
-    // ---- On-screen controls layout backup --------------------------------------
-
-    /** Export the current on-screen controls layout (JSON) to a picked file. Falls back
-     *  to the bundled default layout if the user has never customized it. */
-    private void exportLayout(Uri uri) {
-        final GameInstance target = pendingInstance != null ? pendingInstance : currentInstance();
-        new Thread(() -> {
-            // Controls are per-instance → export the CHOSEN instance's layout
-            // (InstanceSettings falls back to the global/default layout if it has none).
-            String json = (target != null)
-                    ? new InstanceSettings(target.getName()).getControlsJson()
-                    : LauncherPreferences.requireSingleton().getControlsJson();
-            try {
-                if (json == null || json.trim().isEmpty()) {
-                    try (InputStream in = getAssets().open(
-                            com.rimdroid.input.InputControlsView.DEFAULT_ASSET);
-                         java.io.ByteArrayOutputStream bos = new java.io.ByteArrayOutputStream()) {
-                        byte[] b = new byte[8192]; int n;
-                        while ((n = in.read(b)) > 0) bos.write(b, 0, n);
-                        json = bos.toString("UTF-8");
-                    }
-                }
-                try (OutputStream out = getContentResolver().openOutputStream(uri)) {
-                    if (out == null) { ui.post(() -> toast("Export failed: cannot open file")); return; }
-                    out.write(json.getBytes(java.nio.charset.StandardCharsets.UTF_8));
-                }
-                ui.post(() -> toast("Controls layout exported"));
-            } catch (Exception ex) {
-                ui.post(() -> toast("Export failed: " + ex.getMessage()));
-            }
-        }).start();
-    }
-
-    /** Import an on-screen controls layout (JSON) from a picked file. */
-    private void importLayout(Uri uri) {
-        final GameInstance target = pendingInstance != null ? pendingInstance : currentInstance();
-        new Thread(() -> {
-            try (InputStream in = getContentResolver().openInputStream(uri);
-                 java.io.ByteArrayOutputStream bos = new java.io.ByteArrayOutputStream()) {
-                byte[] b = new byte[8192]; int n;
-                while ((n = in.read(b)) > 0) bos.write(b, 0, n);
-                String json = bos.toString("UTF-8");
-                // Validate it parses as JSON before saving (rejects garbage files).
-                new com.google.gson.Gson().fromJson(json, com.google.gson.JsonElement.class);
-                // Import into the CHOSEN instance's layout (per-instance controls).
-                if (target != null) new InstanceSettings(target.getName()).setControlsJson(json);
-                else LauncherPreferences.requireSingleton().setControlsJson(json);
-                ui.post(() -> toast("Controls layout imported into " + (target != null ? target.getName() : "default")
-                        + " — reopen the game to apply"));
-            } catch (Exception ex) {
-                ui.post(() -> toast("Import failed: "
-                        + (ex.getMessage() == null ? "invalid layout file" : ex.getMessage())));
-            }
         }).start();
     }
 

@@ -188,9 +188,9 @@ public class ControlsEditorActivity extends Activity implements InputControlsVie
         panelContainer.removeAllViews();
         addTitle(el.editorLabel());
 
-        addSlider("Size", 50, 200, Math.round(el.getScale() * 100), "%",
+        addSlider("Size", 40, 200, Math.round(el.getScale() * 100), "%",
                 v -> { el.setScale(v / 100f); controls.invalidate(); });
-        addSlider("Opacity", 5, 100, Math.round(el.getAlpha() / 2.55f), "%",
+        addSlider("Opacity", 1, 100, Math.round(el.getAlpha() / 2.55f), "%",
                 v -> { el.setAlpha(Math.round(v * 2.55f)); controls.invalidate(); });
         // "Opacity → all": copy THIS element's opacity to every element at once
         // (Zomdroid-style), instead of adjusting each one separately.

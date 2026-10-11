@@ -447,7 +447,8 @@ public class InputControlsView extends View {
         invalidate();
     }
 
-    private static List<ControlElementDescription> parse(String json) {
+    /** A saved layout (JSON array of descriptions), or null when it does not parse. */
+    public static List<ControlElementDescription> parse(String json) {
         try {
             return GSON.fromJson(json, new TypeToken<ArrayList<ControlElementDescription>>(){}.getType());
         } catch (Exception ex) { Log.w(TAG, "parse layout failed: " + ex.getMessage()); return null; }

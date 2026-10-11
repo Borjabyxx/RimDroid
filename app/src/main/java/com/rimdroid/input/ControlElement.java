@@ -14,7 +14,7 @@ import android.view.MotionEvent;
  */
 public abstract class ControlElement {
 
-    public static final float MIN_SCALE = 0.5f;
+    public static final float MIN_SCALE = 0.4f;
     public static final float MAX_SCALE = 2.0f;
 
     protected final InputControlsView view;

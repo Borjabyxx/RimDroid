@@ -54,6 +54,22 @@
         android:name="com.rimdroid.fragments.WikiFragment"
         android:label="@string/nav_wiki" />
 
+    <fragment
+        android:id="@+id/icon_packs_fragment"
+        android:name="com.rimdroid.fragments.IconPacksFragment"
+        android:label="@string/nav_icon_packs" />
+
+    <fragment
+        android:id="@+id/controls_transfer_fragment"
+        android:name="com.rimdroid.fragments.ControlsTransferFragment"
+        android:label="@string/nav_controls_transfer" />
+
+    <action android:id="@+id/action_open_icon_packs"
+        app:destination="@id/icon_packs_fragment" />
+
+    <action android:id="@+id/action_open_controls_transfer"
+        app:destination="@id/controls_transfer_fragment" />
+
     <action android:id="@+id/action_settings"
         app:destination="@id/settings_fragment" />
 

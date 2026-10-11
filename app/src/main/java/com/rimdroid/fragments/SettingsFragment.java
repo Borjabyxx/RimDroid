@@ -355,13 +355,6 @@ public class SettingsFragment extends Fragment {
             }, "rd-gpu-detect").start();
         });
 
-        // --- Edit on-screen controls ---
-        view.findViewById(R.id.btn_edit_controls).setOnClickListener(v -> {
-            android.content.Intent i = new android.content.Intent(requireContext(), com.rimdroid.ControlsEditorActivity.class);
-            i.putExtra(com.rimdroid.ControlsEditorActivity.EXTRA_INSTANCE_NAME, instanceName);
-            startActivity(i);
-        });
-
         // --- Gamepad button mapping (fix swapped/inverted controllers) ---
         view.findViewById(R.id.btn_gamepad_mapper).setOnClickListener(v ->
             startActivity(new android.content.Intent(requireContext(), com.rimdroid.GamepadMapperActivity.class)));
