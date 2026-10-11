@@ -280,10 +280,14 @@ public class NativeGameOverlay extends FrameLayout
     private int gameX(float x) { return Math.round(Math.max(boxLeft, Math.min(boxLeft + boxW - 1, x))); }
     private int gameY(float y) { return Math.round(Math.max(boxTop, Math.min(boxTop + boxH - 1, y))); }
 
+    // Positions handed to the player are relative to its box (InputControlsView's gx/gy give them that
+    // way for the on-screen controls); the gestures here work in this view's coordinates and take
+    // the margins off the same way.
     private void click(int button, int x, int y) {
         controls.moveCursorTo(x, y);
-        button(button, true, x, y);
-        ui.postDelayed(() -> button(button, false, x, y), 50);
+        final int bx = x - boxLeft, by = y - boxTop;
+        button(button, true, bx, by);
+        ui.postDelayed(() -> button(button, false, bx, by), 50);
     }
 
     private void longPress() {
@@ -308,11 +312,12 @@ public class NativeGameOverlay extends FrameLayout
 
     private void pinchScroll(int x, int y, int notches) {
         controls.moveCursorTo(x, y);
-        scroll(x, y, notches);
+        scroll(x - boxLeft, y - boxTop, notches);
     }
 
     @Override
     public boolean onTouchEvent(MotionEvent e) {
+        if (isMouse(e)) return mouseTouch(e);
         if (scaleDetector == null) scaleDetector = new ScaleGestureDetector(getContext(), new ScaleListener());
         scaleDetector.onTouchEvent(e);
         if (e.getPointerCount() >= 2 || scaling) {   // pinch: never a tap, a long press or a pan
@@ -393,7 +398,62 @@ public class NativeGameOverlay extends FrameLayout
     }
 
     @Override public boolean onGenericMotion(View v, MotionEvent event) {
-        return gamepad != null && gamepad.onMotion(event);
+        if (gamepad != null && gamepad.onMotion(event)) return true;
+        return isMouse(event) && mouseMotion(event);
+    }
+
+    // ------------------------------------------------------------------ physical mouse
+
+    // A real mouse is taken whole, as the touches are: its moves drive our cursor, its wheel the
+    // zoom keys, its buttons our clicks. Left to the player, its events arrive in window
+    // coordinates (off by the margins of a boxed player) and in between our injected clicks,
+    // which then get lost (S25, 2026-10-11).
+    private static boolean isMouse(MotionEvent e) {
+        return (e.getSource() & InputDevice.SOURCE_MOUSE) == InputDevice.SOURCE_MOUSE
+                || e.getToolType(0) == MotionEvent.TOOL_TYPE_MOUSE;
+    }
+
+    private boolean mouseMotion(MotionEvent e) {
+        switch (e.getActionMasked()) {
+            case MotionEvent.ACTION_HOVER_ENTER:
+            case MotionEvent.ACTION_HOVER_MOVE:
+                controls.moveCursorTo(e.getX(), e.getY());
+                return true;
+            case MotionEvent.ACTION_SCROLL: {
+                float v = e.getAxisValue(MotionEvent.AXIS_VSCROLL);
+                if (v != 0) pinchScroll(gameX(e.getX()), gameY(e.getY()), v > 0 ? 1 : -1);
+                return true;
+            }
+            default:
+                return true;   // button press/release come as touch events; nothing else is the player's
+        }
+    }
+
+    private int mouseButtonsDown;   // MotionEvent.BUTTON_* we reported pressed
+
+    private boolean mouseTouch(MotionEvent e) {
+        int x = gameX(e.getX()), y = gameY(e.getY());
+        switch (e.getActionMasked()) {
+            case MotionEvent.ACTION_DOWN:
+            case MotionEvent.ACTION_MOVE:
+            case MotionEvent.ACTION_UP:
+            case MotionEvent.ACTION_CANCEL: {
+                controls.moveCursorTo(e.getX(), e.getY());
+                boolean up = e.getActionMasked() == MotionEvent.ACTION_UP || e.getActionMasked() == MotionEvent.ACTION_CANCEL;
+                // A synthetic mouse tap (adb "input mouse tap") carries no button state: the left one.
+                int now = up ? 0 : e.getButtonState() != 0 ? e.getButtonState() : MotionEvent.BUTTON_PRIMARY;
+                int changed = now ^ mouseButtonsDown;
+                for (int bit : new int[] { MotionEvent.BUTTON_PRIMARY, MotionEvent.BUTTON_SECONDARY, MotionEvent.BUTTON_TERTIARY }) {
+                    if ((changed & bit) == 0) continue;
+                    int button = bit == MotionEvent.BUTTON_PRIMARY ? 1 : bit == MotionEvent.BUTTON_TERTIARY ? 2 : 3;
+                    button(button, (now & bit) != 0, x - boxLeft, y - boxTop);
+                }
+                mouseButtonsDown = now;
+                return true;
+            }
+            default:
+                return true;
+        }
     }
 
     // As GameActivity: the on-screen controls hide while a gamepad is connected, on the transition

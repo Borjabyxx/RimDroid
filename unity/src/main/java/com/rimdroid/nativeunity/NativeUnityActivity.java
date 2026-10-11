@@ -189,14 +189,11 @@ public class NativeUnityActivity extends Activity implements IUnityPlayerLifecyc
 
     /**
      * The overlay's input (mouse and keyboard events made from the on-screen controls) into the
-     * player. Positions come in window coordinates; the player wants its own, so a boxed player's
-     * offset is taken off.
+     * player. Positions are the player's own view coordinates (the overlay takes a boxed player's
+     * margins off itself); the player scales them by its view's size (measured 2026-10-11).
      */
     public boolean injectInputEvent(InputEvent event) {
-        if (mUnityPlayer == null) return false;
-        if (event instanceof MotionEvent && (mUnityPlayer.getLeft() != 0 || mUnityPlayer.getTop() != 0))
-            ((MotionEvent) event).offsetLocation(-mUnityPlayer.getLeft(), -mUnityPlayer.getTop());
-        return mUnityPlayer.injectEvent(event);
+        return mUnityPlayer != null && mUnityPlayer.injectEvent(event);
     }
 
     // The NDK does not deliver ACTION_MULTIPLE key events; inject them.
