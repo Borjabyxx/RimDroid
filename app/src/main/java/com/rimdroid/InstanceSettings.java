@@ -185,6 +185,17 @@ public class InstanceSettings {
         p.edit().putBoolean(pfx + "native_mono", v).apply();
     }
 
+    // --- Native engine (experimental, RimWorld 1.6 only): Unity's own ARM64 Android player instead of
+    // the Linux player under box64 (see com.rimdroid.game.NativeEngine). Opt-in, default OFF; the switch
+    // is only shown when this APK carries the player module.
+    public boolean isNativeEngine() {
+        return p.getBoolean(pfx + "native_engine", false);
+    }
+
+    public void setNativeEngine(boolean v) {
+        p.edit().putBoolean(pfx + "native_engine", v).apply();
+    }
+
     // Safety net for the native runtime (NativeMono.settlePreviousLaunch): when a launch with it started,
     // and how many launches in a row crashed early. Written with commit(): the process may die right after.
     public long getNativeMonoLaunchTime() {

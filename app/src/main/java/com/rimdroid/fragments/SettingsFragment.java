@@ -125,6 +125,14 @@ public class SettingsFragment extends Fragment {
                         .show();
             }
         });
+        // Native engine (experimental): only when this APK carries the player module and for 1.6.
+        Switch swNativeEngine = view.findViewById(R.id.sw_native_engine);
+        View tvNativeEngineHint = view.findViewById(R.id.tv_native_engine_hint);
+        boolean nativeEngineOffered = com.rimdroid.game.NativeEngine.isSupported(nativeMonoInstance);
+        swNativeEngine.setVisibility(nativeEngineOffered ? View.VISIBLE : View.GONE);
+        tvNativeEngineHint.setVisibility(nativeEngineOffered ? View.VISIBLE : View.GONE);
+        swNativeEngine.setChecked(nativeEngineOffered && inst.isNativeEngine());
+        swNativeEngine.setOnCheckedChangeListener((btn, checked) -> inst.setNativeEngine(checked));
         swHaptic.setChecked(inst.isHapticFeedback());
         swHaptic.setOnCheckedChangeListener((btn, checked) -> inst.setHapticFeedback(checked));
         // In-game overlay — GLOBAL: off / classic FPS counter / full performance bar (ported from

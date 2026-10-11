@@ -71,6 +71,12 @@ android {
 }
 
 dependencies {
+    // Native Unity player (experimental, ":unity" process). Present only when the build asks for it
+    // (nativeEngine=true) and unity/prepared exists, see settings.gradle.kts.
+    if (rootProject.findProject(':unity') != null) {
+        implementation project(':unity')
+    }
+
     testImplementation 'junit:junit:4.13.2'
 
     // FMOD Android Java classes (org.fmod.AudioDevice / FMOD / MediaCodec). Required on the classpath

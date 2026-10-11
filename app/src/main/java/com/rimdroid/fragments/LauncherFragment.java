@@ -361,6 +361,22 @@ public class LauncherFragment extends Fragment {
         LauncherPreferences.requireSingleton().setLastInstanceName(gi.getName());
         clearLog();
 
+        // Native engine (experimental): Unity's Android player in its own process instead of box64.
+        // Preparing writes the data archive (first launch: a few seconds), so off the UI thread.
+        if (gi.settings().isNativeEngine() && com.rimdroid.game.NativeEngine.isSupported(gi)) {
+            android.content.Context app = requireContext().getApplicationContext();
+            appendLog("Starting the native engine...");
+            new Thread(() -> {
+                try {
+                    app.startActivity(com.rimdroid.game.NativeEngine.prepare(app, gi));
+                } catch (java.io.IOException | RuntimeException e) {
+                    Log.e(TAG, "Native engine launch failed", e);
+                    appendLog(app.getString(R.string.native_engine_failed, e.getMessage()));
+                }
+            }).start();
+            return;
+        }
+
         android.content.Intent gameIntent = new android.content.Intent(requireContext(), GameActivity.class);
         gameIntent.putExtra(GameActivity.EXTRA_INSTANCE_NAME, gi.getName());   // per-instance scale + controls
         requireContext().startActivity(gameIntent);

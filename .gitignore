@@ -19,3 +19,8 @@ local.properties
 _*
 *_INSTRUCTIONS.md
 AUDIO_FMOD_*.md
+
+# Native engine: Unity binaries prepared by tools/unity-native/prepare_unity_module.sh, never committed
+/unity/prepared/
+/unity/.cxx/
+/unity/build/
