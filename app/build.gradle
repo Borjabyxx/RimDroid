@@ -4,7 +4,7 @@ plugins {
 
 android {
     namespace 'com.rimdroid'
-    compileSdk 35
+    compileSdk 36
     // Pin the exact NDK the working build used; r27 supports 16 KB page size when
     // opted in via ANDROID_SUPPORT_FLEXIBLE_PAGE_SIZES below (Android 15+ requirement).
     ndkVersion "27.0.12077973"

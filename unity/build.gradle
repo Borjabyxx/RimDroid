@@ -12,7 +12,7 @@ plugins {
 android {
     // Unity's classes look up their resources (R.id.unitySurfaceView, styles) in this namespace.
     namespace 'com.unity3d.player'
-    compileSdk 35
+    compileSdk 36
     ndkVersion "27.0.12077973"
 
     defaultConfig {

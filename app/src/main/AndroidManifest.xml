@@ -28,6 +28,7 @@
         android:largeHeap="true"
         android:extractNativeLibs="true"
         android:allowNativeHeapPointerTagging="false"
+        android:pageSizeCompat="enabled"
         android:allowBackup="true"
         android:hasFragileUserData="true"
         android:icon="@mipmap/ic_launcher"
