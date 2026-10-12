@@ -210,10 +210,7 @@ public class ControlsEditorActivity extends Activity implements InputControlsVie
                 com.rimdroid.input.IconPacks.followPack(this, controls, b);   // the pack's icon for the new action
             });
             addText("Label", b.getText(), b::setText);
-            addCheckbox("Round (circle)", b.getShape() == ButtonElement.Shape.CIRCLE, round -> {
-                b.setShape(round ? ButtonElement.Shape.CIRCLE : ButtonElement.Shape.RECT);
-                controls.invalidate();
-            });
+            addShapeChoice(b);
             addCheckbox("Toggle (latch on/off)", b.isToggle(), b::setToggle);
             addIconRow(b);
         } else if (el instanceof MouseStickElement) {
@@ -235,6 +232,22 @@ public class ControlsEditorActivity extends Activity implements InputControlsVie
         LinearLayout.LayoutParams lp = rowParams();
         lp.topMargin = (int) (16 * density);
         panelContainer.addView(del, lp);
+        smallerText(panelContainer);
+    }
+
+    /** The element panel's text, two sizes (sp) below the platform defaults: it covers the layout
+     *  being edited, so it should take less room. Applied once to the freshly built panel. */
+    private static final float PANEL_TEXT_SHRINK_SP = 2f;
+
+    private void smallerText(View v) {
+        if (v instanceof TextView) {
+            TextView t = (TextView) v;
+            float px = t.getTextSize() - PANEL_TEXT_SHRINK_SP * getResources().getDisplayMetrics().scaledDensity;
+            t.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, px);
+        } else if (v instanceof android.view.ViewGroup && !(v instanceof AdapterView)) {
+            android.view.ViewGroup g = (android.view.ViewGroup) v;
+            for (int i = 0; i < g.getChildCount(); i++) smallerText(g.getChildAt(i));
+        }
     }
 
     private void addTitle(String text) {
@@ -277,7 +290,18 @@ public class ControlsEditorActivity extends Activity implements InputControlsVie
 
         Spinner sp = new Spinner(this);
         final Binding[] values = Binding.values();
-        ArrayAdapter<Binding> ad = new ArrayAdapter<>(this, android.R.layout.simple_spinner_item, values);
+        ArrayAdapter<Binding> ad = new ArrayAdapter<Binding>(this, android.R.layout.simple_spinner_item, values) {
+            @Override public View getView(int pos, View convert, android.view.ViewGroup parent) {
+                View v = super.getView(pos, convert, parent);
+                if (convert == null) smallerText(v);
+                return v;
+            }
+            @Override public View getDropDownView(int pos, View convert, android.view.ViewGroup parent) {
+                View v = super.getDropDownView(pos, convert, parent);
+                if (convert == null) smallerText(v);
+                return v;
+            }
+        };
         ad.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
         sp.setAdapter(ad);
         for (int i = 0; i < values.length; i++) if (values[i] == selected) { sp.setSelection(i); break; }
@@ -307,6 +331,31 @@ public class ControlsEditorActivity extends Activity implements InputControlsVie
         LinearLayout.LayoutParams lp = rowParams();
         lp.bottomMargin = (int) (10 * density);
         panelContainer.addView(et, lp);
+    }
+
+    /** Rectangle / Circle / Square for a button, one row of radio buttons. */
+    private void addShapeChoice(ButtonElement b) {
+        android.widget.RadioGroup group = new android.widget.RadioGroup(this);
+        group.setOrientation(android.widget.RadioGroup.HORIZONTAL);
+        String[] labels = { "Rectangle", "Circle", "Square" };
+        ButtonElement.Shape[] shapes = { ButtonElement.Shape.RECT, ButtonElement.Shape.CIRCLE, ButtonElement.Shape.SQUARE };
+        for (int i = 0; i < shapes.length; i++) {
+            android.widget.RadioButton rb = new android.widget.RadioButton(this);
+            rb.setId(View.generateViewId());
+            rb.setText(labels[i]);
+            rb.setTextColor(0xFFDDE3EA);
+            group.addView(rb);
+            if (b.getShape() == shapes[i]) rb.setChecked(true);
+            final ButtonElement.Shape shape = shapes[i];
+            rb.setOnCheckedChangeListener((v, on) -> {
+                if (!on) return;
+                b.setShape(shape);
+                controls.invalidate();
+            });
+        }
+        LinearLayout.LayoutParams lp = rowParams();
+        lp.bottomMargin = (int) (10 * density);
+        panelContainer.addView(group, lp);
     }
 
     private void addCheckbox(String label, boolean checked, Consumer<Boolean> onChange) {

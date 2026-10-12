@@ -13,10 +13,11 @@ import android.view.MotionEvent;
  */
 public class ButtonElement extends ControlElement {
 
-    public enum Shape { RECT, CIRCLE }
+    // SQUARE (players asked, 2026-10-02): the circle's footprint with the rectangle's rounded corners.
+    public enum Shape { RECT, CIRCLE, SQUARE }
 
     private static final float RECT_W_DP = 120f, RECT_H_DP = 66f;
-    private static final float CIRCLE_D_DP = 92f;
+    private static final float CIRCLE_D_DP = 92f;   // also the side of SQUARE
 
     private Shape shape;
     private String text;
@@ -41,7 +42,7 @@ public class ButtonElement extends ControlElement {
 
     public ButtonElement(InputControlsView view, ControlElementDescription d) {
         super(view, d);
-        this.shape = "CIRCLE".equalsIgnoreCase(d.shape) ? Shape.CIRCLE : Shape.RECT;
+        this.shape = parseShape(d.shape);
         this.text = d.text != null ? d.text : "";
         this.isToggle = d.isToggle;
         this.binding = (d.bindings != null && d.bindings.length > 0)
@@ -51,6 +52,13 @@ public class ButtonElement extends ControlElement {
         fill.setStyle(Paint.Style.FILL);
         stroke.setStyle(Paint.Style.STROKE);
         textPaint.setTextAlign(Paint.Align.CENTER);
+    }
+
+    /** Layout JSON value → shape; anything unknown (or missing) stays the rectangle it always was. */
+    static Shape parseShape(String s) {
+        if ("CIRCLE".equalsIgnoreCase(s)) return Shape.CIRCLE;
+        if ("SQUARE".equalsIgnoreCase(s)) return Shape.SQUARE;
+        return Shape.RECT;
     }
 
     private float halfW() { return dp((shape == Shape.RECT ? RECT_W_DP : CIRCLE_D_DP) / 2f) * scale; }

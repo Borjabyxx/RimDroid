@@ -5,6 +5,11 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Wiki</title>
     <style>
+        /* One size below the WebView default (16px): long pages read better a little smaller. */
+        body {
+            font-size: 15px;
+        }
+
         @media (prefers-color-scheme: dark) {
             body {
                 color: #E2E2E9;
@@ -200,6 +205,18 @@
         <li>Install them in the side menu, <b>Install mod / DLC</b>, tab <b>MODS</b>. RimDroid finds
             the mod's real folder (the one with <code>About/About.xml</code>) inside any
             .zip.</li>
+        <li>A <b>Workshop collection</b> works the same way: paste its link or ID, and every mod in
+            it is downloaded.</li>
+        <li><b>Mods</b> in the side menu lists an instance's mods: <b>Active</b> in load order on top,
+            <b>Inactive</b> below, with a search field. The switch turns a mod on or off, the bin
+            deletes a downloaded mod, a tap shows its details. A mod marked <i>Not for 1.6</i> does not
+            list this game version; <i>Not installed</i> is in the list but its folder is gone. Close the
+            game first: while it runs the list cannot be changed.</li>
+        <li><b>Sort</b> puts the active mods in the order their authors ask for (what a mod needs
+            loads before it), Harmony first, then Core and the DLC. It shows how many mods move, and
+            which needed mods are missing (with their Workshop number) or switched off, before
+            anything changes. To move a mod by hand, drag it by <b>≡</b>; a long press offers
+            <b>Move to the top</b> / <b>Move to the bottom</b>.</li>
         <li>Mods that need <b>Harmony</b> work: add the Harmony mod itself, as on a PC.</li>
         <li>Mod lists of up to about 50 mods have been tested. Bigger lists are untested
             territory.</li>

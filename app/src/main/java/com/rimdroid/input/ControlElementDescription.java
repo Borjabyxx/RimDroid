@@ -11,7 +11,7 @@ package com.rimdroid.input;
 public class ControlElementDescription {
 
     public String  type;            // "BUTTON" | "MOUSE_STICK" | "WASD_STICK"
-    public String  shape;           // BUTTON only: "RECT" | "CIRCLE"
+    public String  shape;           // BUTTON only: "RECT" | "CIRCLE" | "SQUARE"
     public float   centerXRelative; // 0..1
     public float   centerYRelative; // 0..1
     public float   scale;           // 0.5..2.0
