@@ -255,7 +255,7 @@ In the cloud: %2$s
     <string name="download_version_note">Downloads the Linux build straight into a new instance — no Termux, no PC.</string>
     <string name="download_instance_hint">Instance name (e.g. RimWorld 1.5)</string>
     <string name="download_version_label">Game version</string>
-    <string name="download_version_15">RimWorld 1.5</string>
+    <string name="download_version_15">RimWorld 1.5 (legacy)</string>
     <string name="download_version_16">RimWorld 1.6</string>
     <string name="download_user_hint">Steam username</string>
     <string name="download_pass_hint">Steam password</string>
@@ -294,7 +294,7 @@ In the cloud: %2$s
     <string name="gog_install_dlc">Install</string>
     <string name="gog_item_dlc">DLC · %1$s</string>
     <string name="new_instance_with_dlc">%1$s\n+ DLC: %2$d</string>
-    <string name="download_manifest_hint">Advanced: Manifest ID — blank = recommended 1.5</string>
+    <string name="download_manifest_hint">Advanced: Manifest ID — blank = the latest build of the chosen version</string>
     <string name="download_start">Download</string>
     <string name="download_tab_game">Game</string>
     <string name="download_tab_dlc">DLC</string>

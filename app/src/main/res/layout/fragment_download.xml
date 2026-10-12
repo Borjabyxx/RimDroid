@@ -110,14 +110,14 @@
                     android:id="@+id/rb_dl_15"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:checked="true"
                     android:text="@string/download_version_15" />
                 <RadioButton
                     android:id="@+id/rb_dl_16"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:layout_marginStart="16dp"
-                    android:text="@string/download_version_16" />
+                    android:text="@string/download_version_16"
+                    android:checked="true" />
             </RadioGroup>
         </LinearLayout>
 

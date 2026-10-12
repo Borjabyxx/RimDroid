@@ -235,7 +235,7 @@
     <string name="download_version_note">把 Linux 版直接下载到一个新实例里——不需要 Termux，不需要电脑。</string>
     <string name="download_instance_hint">实例名称（例如 RimWorld 1.5）</string>
     <string name="download_version_label">游戏版本</string>
-    <string name="download_version_15">RimWorld 1.5</string>
+    <string name="download_version_15">RimWorld 1.5（旧版）</string>
     <string name="download_version_16">RimWorld 1.6</string>
     <string name="download_user_hint">Steam 用户名</string>
     <string name="download_pass_hint">Steam 密码</string>
@@ -272,7 +272,7 @@
     <string name="gog_install_dlc">安装</string>
     <string name="gog_item_dlc">DLC · %1$s</string>
     <string name="new_instance_with_dlc">%1$s\n+ DLC：%2$d</string>
-    <string name="download_manifest_hint">高级：Manifest ID——留空 = 推荐的 1.5</string>
+    <string name="download_manifest_hint">高级：Manifest ID——留空 = 所选版本的最新构建</string>
     <string name="download_start">下载</string>
     <string name="download_tab_game">游戏</string>
     <string name="download_tab_dlc">DLC</string>

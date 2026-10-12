@@ -234,7 +234,7 @@
     <string name="download_version_note">Загружает Linux-сборку прямо в новый инстанс — без Termux и без ПК.</string>
     <string name="download_instance_hint">Имя инстанса (например, RimWorld 1.5)</string>
     <string name="download_version_label">Версия игры</string>
-    <string name="download_version_15">RimWorld 1.5</string>
+    <string name="download_version_15">RimWorld 1.5 (устаревшая)</string>
     <string name="download_version_16">RimWorld 1.6</string>
     <string name="download_user_hint">Логин Steam</string>
     <string name="download_pass_hint">Пароль Steam</string>
@@ -270,7 +270,7 @@
     <string name="gog_install_dlc">Установить</string>
     <string name="gog_item_dlc">DLC · %1$s</string>
     <string name="new_instance_with_dlc">%1$s\n+ DLC: %2$d</string>
-    <string name="download_manifest_hint">Дополнительно: Manifest ID — пусто = рекомендуемая 1.5</string>
+    <string name="download_manifest_hint">Дополнительно: Manifest ID — пусто = последняя сборка выбранной версии</string>
     <string name="download_start">Загрузить</string>
     <string name="download_tab_game">Игра</string>
     <string name="download_tab_dlc">DLC</string>

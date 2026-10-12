@@ -234,7 +234,7 @@ En la nube: %2$s
     <string name="download_version_note">Descarga la versión de Linux directamente en una instancia nueva: sin Termux y sin PC.</string>
     <string name="download_instance_hint">Nombre de la instancia (p. ej. RimWorld 1.5)</string>
     <string name="download_version_label">Versión del juego</string>
-    <string name="download_version_15">RimWorld 1.5</string>
+    <string name="download_version_15">RimWorld 1.5 (antigua)</string>
     <string name="download_version_16">RimWorld 1.6</string>
     <string name="download_user_hint">Usuario de Steam</string>
     <string name="download_pass_hint">Contraseña de Steam</string>
@@ -273,7 +273,7 @@ En la nube: %2$s
 
     <string name="nav_label_donate">Donar</string>
     <string name="zomdroid_dialog_message">Zomdroid ejecuta Project Zomboid en Android, igual que este launcher ejecuta RimWorld. Mismo autor, mismo enfoque.\n\nhttps://github.com/udarmolota/Zomdroid/releases</string>
-    <string name="download_manifest_hint">Avanzado: ID de manifiesto — vacío = 1.5 recomendada</string>
+    <string name="download_manifest_hint">Avanzado: ID de manifiesto — vacío = la última compilación de la versión elegida</string>
     <string name="download_start">Descargar</string>
     <string name="download_tab_game">Juego</string>
     <string name="download_tab_dlc">DLC</string>
