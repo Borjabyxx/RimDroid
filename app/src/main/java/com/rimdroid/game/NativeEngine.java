@@ -109,6 +109,12 @@ public final class NativeEngine {
         // RimWorld loads Data/ (Core, DLC) and Mods/ from dataPath's parent: the instance root.
         env.add("RIMDROID_IL2MONO_DATA_PATH=" + dataDir.getAbsolutePath());
         com.rimdroid.InstanceSettings is = instance.settings();
+        // The built-in mod is always active here: it carries Harmony for the bridge's own patches
+        // (list scrolling, DDS textures). Its controller UI still follows the gamepad, as on box64.
+        com.rimdroid.BuiltinControllerUiMod.install(context, gameDir);
+        com.rimdroid.BuiltinControllerUiMod.setActive(gameDir, true);
+        boolean gamepad = com.rimdroid.input.GamepadHandler.hasConnectedGamepad();
+        env.add("RIMDROID_CONTROLLER_UI=" + (gamepad ? "1" : "0"));
         // Texture tier (Settings → Video, the same three positions as the box64 mip shim): Unity's own
         // texture mipmap limit, applied by il2mono. 1 = every texture half size, 2 = a quarter;
         // render-target atlases (pawns, animals) have no mips and stay as they are.
@@ -156,6 +162,7 @@ public final class NativeEngine {
                 + "texture compr : game setting pinned on\n"
                 + "render size   : " + (renderSize != null ? renderSize[0] + "x" + renderSize[1] : "screen") + "\n"
                 + "fps cap       : " + (is.getFpsCap() > 0 ? is.getFpsCap() : 0) + " (0 = none)\n"
+                + "controller UI : " + (gamepad ? "ON" : "off") + " (built-in mod active: carries Harmony)\n"
                 + "extra env     : " + userEnvironmentSummary(is) + "\n"
                 + "unity args    : (see below)\n"
                 + "active mods   : " + com.rimdroid.GameLauncher.readActiveMods(instance) + "\n";

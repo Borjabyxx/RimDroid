@@ -31,7 +31,7 @@ namespace RimDroid
                 var go = new GameObject("RimDroid scroll bridge");
                 UnityEngine.Object.DontDestroyOnLoad(go);
                 go.AddComponent<ScrollPump>();
-                Debug.Log("RIMDROID bridge: initialized; zoom available, waiting for the player's Harmony for lists");
+                Debug.Log("RIMDROID bridge: initialized; zoom available, waiting for Harmony (built-in mod) for lists");
             }
             catch (Exception e) { Fail(e); }
         }
@@ -138,8 +138,9 @@ namespace RimDroid
         internal static void TryInstall(MethodInfo original)
         {
             if (finished) return;
-            // Only use a Harmony assembly the player's enabled mods loaded. Never load a disabled
-            // mod's DLL or bundle our own copy, which could conflict with the mod loader's version.
+            // Use whichever 0Harmony the mod loader already loaded: on the native engine RimDroid's
+            // built-in mod always carries one, so this no longer depends on the player's mods. The
+            // bridge never loads a Harmony DLL itself (a disabled mod's copy could conflict).
             foreach (Assembly assembly in AppDomain.CurrentDomain.GetAssemblies())
             {
                 if (assembly.GetName().Name != "0Harmony") continue;
@@ -163,7 +164,28 @@ namespace RimDroid
                     args[0] = original;
                     args[1] = patchInfo;
                     patch.Invoke(harmony, args);
-                    Debug.Log("RIMDROID bridge: list scrolling enabled with player's Harmony " + assembly.GetName().Version);
+                    Debug.Log("RIMDROID bridge: list scrolling enabled with Harmony " + assembly.GetName().Version);
+                    // DDS textures the GPU cannot hold compressed (DdsRecompress): a postfix on the loader.
+                    try
+                    {
+                        Type dds = Type.GetType("Verse.ModDdsLoader, Assembly-CSharp", false);
+                        MethodInfo loader = dds == null ? null : dds.GetMethod("TryLoadDds",
+                            BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static);
+                        if (loader == null) Debug.Log("RIMDROID bridge: no ModDdsLoader.TryLoadDds in this game build; DDS textures stay as they are");
+                        else
+                        {
+                            object postfix = Activator.CreateInstance(methodType, new object[] { typeof(DdsRecompress).GetMethod("AfterTryLoadDds") });
+                            object[] ddsArgs = new object[patch.GetParameters().Length];
+                            ddsArgs[0] = loader;
+                            ddsArgs[2] = postfix;
+                            patch.Invoke(harmony, ddsArgs);
+                            Debug.Log("RIMDROID bridge: DDS textures are re-compressed for this GPU");
+                        }
+                    }
+                    catch (Exception e)
+                    {
+                        Debug.LogWarning("RIMDROID bridge: DDS re-compress patch unavailable (" + e.GetBaseException().Message + ")");
+                    }
                 }
                 catch (Exception e)
                 {

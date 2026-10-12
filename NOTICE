@@ -99,6 +99,10 @@ Zomdroid               MIT License          Copyright (c) 2025 liamelui;
 
 --- Native (bundled .so / linked / git submodules) ---
 
+Harmony (0Harmony.dll) MIT License          Copyright (c) 2017 Andreas Pardeike
+                       github.com/pardeike/Harmony, fetched from NuGet at build
+                       time into RimDroid's built-in mod
+
 box64                  MIT License          Copyright (c) 2020 ptitSeb
                        (RimDroid uses a fork: github.com/udarmolota/rimdroid-box64,
                         which remains MIT, same as upstream.)

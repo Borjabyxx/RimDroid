@@ -68,7 +68,50 @@ android {
             outputFileName = "rimdroid-${variant.buildType.name}-${variant.versionName}.apk"
         }
     }
+
+    // Harmony rides in the built-in mod (see fetchHarmony below), fetched at build time: no
+    // binary in the repository.
+    sourceSets {
+        main {
+            assets.srcDirs += "$buildDir/harmony/assets"
+        }
+    }
 }
+
+// Lib.Harmony (MIT, Andreas Pardeike) from NuGet, pinned by hash: 0Harmony.dll goes into the
+// built-in mod's Assemblies, so every player of the native engine has Harmony for RimDroid's
+// own patches (list scrolling, DDS textures) whether or not they use mods. Same copy every mod
+// ships; the game loads the first one it meets.
+def harmonyVersion = "2.4.1"
+def harmonySha256 = "ff0183a1f27167f3543a0e095b4930a96c833ce783453e85a1e8a8ed33cd2f6d"
+def harmonyDir = new File(buildDir, "harmony")
+tasks.register("fetchHarmony") {
+    def nupkg = new File(harmonyDir, "lib.harmony.${harmonyVersion}.nupkg")
+    def dll = new File(harmonyDir, "assets/builtinmods/RimDroidControllerUI/Assemblies/0Harmony.dll")
+    outputs.file(dll)
+    doLast {
+        if (!nupkg.isFile()) {
+            nupkg.parentFile.mkdirs()
+            new URL("https://api.nuget.org/v3-flatcontainer/lib.harmony/${harmonyVersion}/lib.harmony.${harmonyVersion}.nupkg")
+                    .withInputStream { i -> nupkg.withOutputStream { o -> o << i } }
+        }
+        def digest = java.security.MessageDigest.getInstance("SHA-256").digest(nupkg.bytes)
+                .collect { String.format("%02x", it) }.join()
+        if (digest != harmonySha256) {
+            nupkg.delete()
+            throw new GradleException("Lib.Harmony ${harmonyVersion}: unexpected package hash ${digest}")
+        }
+        dll.parentFile.mkdirs()
+        def zip = new java.util.zip.ZipFile(nupkg)
+        try {
+            def entry = zip.getEntry("lib/net472/0Harmony.dll")
+            zip.getInputStream(entry).withStream { i -> dll.withOutputStream { o -> o << i } }
+        } finally {
+            zip.close()
+        }
+    }
+}
+preBuild.dependsOn fetchHarmony
 
 dependencies {
     // Native Unity player (experimental, ":unity" process). Present only when the build asks for it
