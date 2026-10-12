@@ -28,9 +28,27 @@ namespace RimDroid
             try
             {
                 game = new GameApi();
+                // The game loads every mod's assemblies on its loading thread and only then, in one
+                // main-thread pass, their textures: the texture cache prefix has to be in place the
+                // moment 0Harmony (built-in mod) appears, not at the next once-a-second frame check.
+                AppDomain.CurrentDomain.AssemblyLoad += (sender, args) =>
+                {
+                    try
+                    {
+                        if (args.LoadedAssembly.GetName().Name == "0Harmony") ScrollPatch.TryInstall(game.BeginScrollView);
+                    }
+                    catch (Exception e) { Debug.LogWarning("RIMDROID bridge: patch on assembly load failed: " + e.GetBaseException().Message); }
+                };
                 var go = new GameObject("RimDroid scroll bridge");
                 UnityEngine.Object.DontDestroyOnLoad(go);
                 go.AddComponent<ScrollPump>();
+                // Which compressed formats this GPU takes as they are: the game's own assets are
+                // DXT/BC7; where those are unsupported Unity unpacks them to RGBA32 on load.
+                Debug.Log("RIMDROID bridge: GPU texture formats: DXT1 " + SystemInfo.SupportsTextureFormat(TextureFormat.DXT1)
+                    + ", DXT5 " + SystemInfo.SupportsTextureFormat(TextureFormat.DXT5)
+                    + ", BC7 " + SystemInfo.SupportsTextureFormat(TextureFormat.BC7)
+                    + ", ETC2 " + SystemInfo.SupportsTextureFormat(TextureFormat.ETC2_RGBA8)
+                    + ", ASTC " + SystemInfo.SupportsTextureFormat(TextureFormat.ASTC_4x4));
                 Debug.Log("RIMDROID bridge: initialized; zoom available, waiting for Harmony (built-in mod) for lists");
             }
             catch (Exception e) { Fail(e); }
@@ -49,6 +67,7 @@ namespace RimDroid
                 {
                     nextHarmonyCheck = Time.realtimeSinceStartup + 1f;
                     ScrollPatch.TryInstall(game.BeginScrollView);
+                    TextureCacheLoader.Tick();
                 }
             }
             catch (Exception e) { Fail(e); }
@@ -185,6 +204,50 @@ namespace RimDroid
                     catch (Exception e)
                     {
                         Debug.LogWarning("RIMDROID bridge: DDS re-compress patch unavailable (" + e.GetBaseException().Message + ")");
+                    }
+                    // Restart through the launcher (RestartPatch): a prefix on GenCommandLine.Restart.
+                    try
+                    {
+                        Type cmd = Type.GetType("Verse.GenCommandLine, Assembly-CSharp", false);
+                        MethodInfo restart = cmd == null ? null : cmd.GetMethod("Restart", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static);
+                        if (restart == null) Debug.Log("RIMDROID bridge: no GenCommandLine.Restart in this game build");
+                        else
+                        {
+                            object restartPrefix = Activator.CreateInstance(methodType, new object[] { typeof(RestartPatch).GetMethod("BeforeRestart") });
+                            object[] restartArgs = new object[patch.GetParameters().Length];
+                            restartArgs[0] = restart;
+                            restartArgs[1] = restartPrefix;
+                            patch.Invoke(harmony, restartArgs);
+                        }
+                    }
+                    catch (Exception e)
+                    {
+                        Debug.LogWarning("RIMDROID bridge: restart patch unavailable (" + e.GetBaseException().Message + ")");
+                    }
+                    // The launcher's texture cache (TextureCacheLoader): a prefix on the texture loader.
+                    try
+                    {
+                        if (!TextureCacheLoader.Enabled) Debug.Log("RIMDROID bridge: texture cache off");
+                        else
+                        {
+                            Type loaderType = Type.GetType("Verse.ModContentLoader`1, Assembly-CSharp", false);
+                            MethodInfo loadTexture = loaderType == null ? null : loaderType.MakeGenericType(typeof(Texture2D))
+                                .GetMethod("LoadTexture", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static);
+                            if (loadTexture == null) Debug.Log("RIMDROID bridge: no ModContentLoader<Texture2D>.LoadTexture in this game build; texture cache unused");
+                            else
+                            {
+                                object cachePrefix = Activator.CreateInstance(methodType, new object[] { typeof(TextureCacheLoader).GetMethod("BeforeLoadTexture") });
+                                object[] cacheArgs = new object[patch.GetParameters().Length];
+                                cacheArgs[0] = loadTexture;
+                                cacheArgs[1] = cachePrefix;
+                                patch.Invoke(harmony, cacheArgs);
+                                Debug.Log("RIMDROID bridge: texture cache serves the texture loader");
+                            }
+                        }
+                    }
+                    catch (Exception e)
+                    {
+                        Debug.LogWarning("RIMDROID bridge: texture cache patch unavailable (" + e.GetBaseException().Message + ")");
                     }
                 }
                 catch (Exception e)

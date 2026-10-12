@@ -70,6 +70,11 @@
     <string name="native_engine_label">Нативный движок (экспериментально)</string>
     <string name="native_engine_hint">Игра работает на Android-версии своего движка, без эмуляции. Только RimWorld 1.6. Ранний тест: сначала сделай копию сохранений.</string>
     <string name="native_engine_failed">Не удалось запустить нативный движок: %1$s</string>
+    <string name="texcache_title">Подготовка текстур</string>
+    <string name="texcache_message">Новые или изменённые текстуры переводятся в формат нативного движка. Это делается один раз; потом игра грузится быстрее и занимает меньше памяти.</string>
+    <string name="texcache_progress">%1$d / %2$d</string>
+    <string name="texcache_skip">Пропустить</string>
+    <string name="texcache_game_assets">Текстуры игры…</string>
     <string name="native_mono_hint">Код самой игры выполняется напрямую, без эмуляции x86. Обычно быстрее и плавнее на высокой скорости игры, особенно в больших колониях. Только RimWorld 1.6. Экспериментально: сначала сделай копию сохранений и выключи, если что-то сломается.</string>
     <string name="native_mono_off_msg">Игра будет работать в прежнем, более медленном режиме. Если вы выключили из-за проблемы, пришлите нам логи — это поможет её исправить.</string>
     <string name="native_mono_crash_title">Игра не запустилась</string>

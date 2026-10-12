@@ -620,11 +620,12 @@ public class NativeGameOverlay extends FrameLayout
     // ------------------------------------------------------------------ soft keyboard
 
     /**
-     * Invisible view that owns the IME connection, a "dummy" editor: Android turns committed text
-     * into key events itself, single mappable characters as ordinary key presses and anything else
-     * as one ACTION_MULTIPLE event carrying the characters. They reach the player like a hardware
-     * keyboard's (NativeUnityActivity forwards ACTION_MULTIPLE), and the player makes the text for
-     * input fields.
+     * Invisible view that owns the IME connection, a "dummy" editor. Every character goes to the
+     * player as its own key press (KeyCharacterMap): Android's own dummy-editor behaviour sends a
+     * whole word as one ACTION_MULTIPLE event when the keyboard composes (Gboard and most keyboards
+     * with suggestions), and the player drops those — "no text input at all" on a tester's phone
+     * while a per-character keyboard (Samsung's) worked. Composing is followed as it goes: added
+     * characters are typed, removed ones are Backspaces. Latin only, as before.
      */
     private static final class KeyboardCatcher extends View {
         private boolean accepting;
@@ -653,12 +654,53 @@ public class NativeGameOverlay extends FrameLayout
             outAttrs.inputType = InputType.TYPE_CLASS_TEXT;
             outAttrs.imeOptions = EditorInfo.IME_FLAG_NO_FULLSCREEN | EditorInfo.IME_FLAG_NO_EXTRACT_UI;
             return new BaseInputConnection(this, false) {
-                // The dummy editor holds no text, so a delete would remove nothing: send Backspace.
-                @Override public boolean deleteSurroundingText(int before, int after) {
-                    for (int i = 0; i < before; i++) {
+                private String composing = "";
+                private final KeyCharacterMap map = KeyCharacterMap.load(KeyCharacterMap.VIRTUAL_KEYBOARD);
+
+                private void backspace(int n) {
+                    for (int i = 0; i < n; i++) {
                         sendKeyEvent(new KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_DEL));
                         sendKeyEvent(new KeyEvent(KeyEvent.ACTION_UP, KeyEvent.KEYCODE_DEL));
                     }
+                }
+
+                private void type(String s) {
+                    for (int i = 0; i < s.length(); i++) {
+                        KeyEvent[] events = map.getEvents(new char[] { s.charAt(i) });
+                        if (events == null) continue;   // no key for this character (non-Latin)
+                        for (KeyEvent e : events) sendKeyEvent(e);
+                    }
+                }
+
+                /** The keyboard's current text replaces what it composed before: common prefix kept. */
+                private void edit(String text) {
+                    int keep = 0;
+                    while (keep < composing.length() && keep < text.length() && composing.charAt(keep) == text.charAt(keep)) keep++;
+                    backspace(composing.length() - keep);
+                    type(text.substring(keep));
+                }
+
+                @Override public boolean setComposingText(CharSequence text, int newCursorPosition) {
+                    String s = text == null ? "" : text.toString();
+                    edit(s);
+                    composing = s;
+                    return true;
+                }
+
+                @Override public boolean commitText(CharSequence text, int newCursorPosition) {
+                    edit(text == null ? "" : text.toString());
+                    composing = "";
+                    return true;
+                }
+
+                @Override public boolean finishComposingText() {
+                    composing = "";
+                    return true;
+                }
+
+                // The dummy editor holds no text, so a delete would remove nothing: send Backspace.
+                @Override public boolean deleteSurroundingText(int before, int after) {
+                    backspace(before);
                     return true;
                 }
             };

@@ -48,7 +48,37 @@ public class NativeUnityActivity extends Activity implements IUnityPlayerLifecyc
     // (View.OnKeyListener / OnGenericMotionListener).
     private View overlay;
 
+    /** Set by the launcher: the instance this activity runs (NativeEngine.EXTRA_INSTANCE). */
+    public static final String EXTRA_INSTANCE = "rimdroid.instance";
+    public static final String ACTION_LAUNCH_INSTANCE = "com.rimdroid.action.LAUNCH_INSTANCE";
+    public static final String EXTRA_LAUNCH_INSTANCE = "instance", EXTRA_RESTART = "restart";
+    private static NativeUnityActivity current;
+
+    /**
+     * The game's own "restart" (GenCommandLine.Restart) re-executes its PC binary, which does not
+     * exist here. The bridge calls this instead: the launcher is asked to start the same instance
+     * again once this process is gone (it also prepares textures for a changed mod list), and
+     * this process ends. Called from the game's thread.
+     */
+    public static void restartInstance() {
+        final NativeUnityActivity a = current;
+        if (a == null) return;
+        a.runOnUiThread(() -> {
+            String name = a.getIntent().getStringExtra(EXTRA_INSTANCE);
+            Intent i = new Intent(ACTION_LAUNCH_INSTANCE);
+            i.setClassName(a.getPackageName(), "com.rimdroid.LauncherActivity");
+            i.putExtra(EXTRA_LAUNCH_INSTANCE, name);
+            i.putExtra(EXTRA_RESTART, true);
+            i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP);
+            a.startActivity(i);
+            a.finishAndRemoveTask();
+            new android.os.Handler(android.os.Looper.getMainLooper()).postDelayed(
+                    () -> android.os.Process.killProcess(android.os.Process.myPid()), 300);
+        });
+    }
+
     @Override protected void onCreate(Bundle savedInstanceState) {
+        current = this;
         requestWindowFeature(Window.FEATURE_NO_TITLE);
         super.onCreate(savedInstanceState);
         // Before the player loads libmain/libunity/il2mono: il2mono reads its paths from the environment.

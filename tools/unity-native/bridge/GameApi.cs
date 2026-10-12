@@ -80,9 +80,12 @@ namespace RimDroid
             object config = api.Config.GetValue(camera);
 
             // CameraDriverOnGUI: MapDragSensitivity affects drag only, not the scroll zoom rate.
+            // One wheel click reaches the game's handler as Event.delta.y = 3 on a PC (and did on
+            // box64 through X11), so a notch here is three units: without it one press of the
+            // Zoom button was a third of a step ("micro steps", tester 2026-10-12).
             float rate = onWorld ? 0.1f : Number(api.WheelRate);
             float desired = Number(api.Desired, camera)
-                - notches * rate * Number(api.ZoomSpeed, config) * Number(api.Size, camera) / (onWorld ? 12f : 35f);
+                - notches * 3f * rate * Number(api.ZoomSpeed, config) * Number(api.Size, camera) / (onWorld ? 12f : 35f);
             if (!onWorld)
             {
                 object range = api.Range.GetValue(config);

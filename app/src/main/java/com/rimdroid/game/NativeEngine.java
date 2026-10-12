@@ -94,7 +94,7 @@ public final class NativeEngine {
 
         long apkStamp = apkStamp(context);
         File overrides = extractManagedOverrides(context, apkStamp);
-        File archive = buildDataArchive(context, dataDir, workDir, apkStamp);
+        File archive = buildDataArchive(context, dataDir, workDir, apkStamp, instance);
         File etc = prepareMonoConfig(dataDir, workDir);
         File userData = instance.getUserDataDir();
         if (!userData.isDirectory() && !userData.mkdirs()) throw new IOException("cannot create " + userData);
@@ -115,6 +115,11 @@ public final class NativeEngine {
         com.rimdroid.BuiltinControllerUiMod.setActive(gameDir, true);
         boolean gamepad = com.rimdroid.input.GamepadHandler.hasConnectedGamepad();
         env.add("RIMDROID_CONTROLLER_UI=" + (gamepad ? "1" : "0"));
+        // Texture cache (built by the launcher before this call): the bridge keys entries by the
+        // path relative to the game folder, so it gets both the folder and the root.
+        boolean texCache = is.isTexCache();
+        env.add("RIMDROID_TEXCACHE_DIR=" + (texCache ? TextureCache.dir(instance).getAbsolutePath() : ""));
+        env.add("RIMDROID_TEXCACHE_ROOT=" + gameDir.getAbsolutePath());
         // Texture tier (Settings → Video, the same three positions as the box64 mip shim): Unity's own
         // texture mipmap limit, applied by il2mono. 1 = every texture half size, 2 = a quarter;
         // render-target atlases (pawns, animals) have no mips and stay as they are.
@@ -160,6 +165,7 @@ public final class NativeEngine {
                 + "texture tier  : " + tier + " -> mipmap limit " + (tier == com.rimdroid.InstanceSettings.TEX_ULTRA ? 2
                         : tier == com.rimdroid.InstanceSettings.TEX_LOW ? 1 : 0) + "\n"
                 + "texture compr : game setting pinned on\n"
+                + "texture cache : " + (texCache ? "on, " + TextureCache.size(instance) / (1024 * 1024) + " MB" : "off") + "\n"
                 + "render size   : " + (renderSize != null ? renderSize[0] + "x" + renderSize[1] : "screen") + "\n"
                 + "fps cap       : " + (is.getFpsCap() > 0 ? is.getFpsCap() : 0) + " (0 = none)\n"
                 + "controller UI : " + (gamepad ? "ON" : "off") + " (built-in mod active: carries Harmony)\n"
@@ -298,16 +304,20 @@ public final class NativeEngine {
                 || relative.endsWith(".png");
     }
 
-    private static File buildDataArchive(Context context, File dataDir, File workDir, long apkStamp) throws IOException {
+    private static File buildDataArchive(Context context, File dataDir, File workDir, long apkStamp,
+                                         GameInstance instance) throws IOException {
         File archive = new File(workDir, "data.zip");
         File stampFile = new File(workDir, "data.zip.stamp");
         List<String> gameFiles = new ArrayList<>();
         listFiles(dataDir, "", gameFiles);
+        // The game's own textures converted for this GPU (TextureCache.convertAssets) replace the
+        // originals in the archive while the texture cache is on; the stamp follows the choice.
+        boolean useConverted = instance.settings().isTexCache();
         long stamp = apkStamp;
         for (String rel : gameFiles) {
             if (isExcluded(rel)) continue;
-            File f = new File(dataDir, rel);
-            stamp = stamp * 31 + f.length() * 7 + f.lastModified();
+            File f = sourceFile(dataDir, rel, useConverted, instance);
+            stamp = stamp * 31 + f.length() * 7 + f.lastModified() + (f.getParentFile().equals(dataDir) ? 0 : 1);
         }
         if (archive.isFile() && readStamp(stampFile) == stamp) return archive;
 
@@ -334,7 +344,7 @@ public final class NativeEngine {
                 else if (rel.equals("RuntimeInitializeOnLoads.json"))
                     putStored(zip, "assets/bin/Data/" + rel, addBridgeInitializer(readFile(file)));
                 else
-                    putStoredFile(zip, "assets/bin/Data/" + rel, file);
+                    putStoredFile(zip, "assets/bin/Data/" + rel, sourceFile(dataDir, rel, useConverted, instance));
             }
             try (InputStream in = assets.open(MANAGED_OVERRIDES_ASSETS + "/RimDroidBridge.dll")) {
                 putStored(zip, "assets/bin/Data/Managed/RimDroidBridge.dll", readAll(in));
@@ -454,6 +464,15 @@ public final class NativeEngine {
             }
         }
         zip.closeEntry();
+    }
+
+    /** The converted resources.assets / .resS when wanted and current, else the game's own file. */
+    private static File sourceFile(File dataDir, String rel, boolean useConverted, GameInstance instance) {
+        if (useConverted && (rel.equals(TextureCache.ASSETS) || rel.equals(TextureCache.RESS))) {
+            File converted = TextureCache.convertedFile(instance, rel);
+            if (converted != null) return converted;
+        }
+        return new File(dataDir, rel);
     }
 
     private static void patchHead(byte[] buf, int n, long pos, byte[] head, int headLen) {

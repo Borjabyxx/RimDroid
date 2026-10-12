@@ -148,9 +148,13 @@ public class LauncherFragment extends Fragment {
         // A home-screen shortcut: start its instance as a tap on Play would.
         if (getActivity() instanceof LauncherActivity) {
             String name = ((LauncherActivity) getActivity()).takeLaunchRequest();
-            if (name != null && !InstanceShortcuts.bringRunningGameToFront(requireContext())) {
-                for (GameInstance gi : instances) {
-                    if (gi.getName().equals(name)) { launchInstance(gi); break; }
+            boolean restart = ((LauncherActivity) getActivity()).takeLaunchIsRestart();
+            if (name != null) {
+                if (restart) restartWhenGameIsGone(name, 0);
+                else if (!InstanceShortcuts.bringRunningGameToFront(requireContext())) {
+                    for (GameInstance gi : instances) {
+                        if (gi.getName().equals(name)) { launchInstance(gi); break; }
+                    }
                 }
             }
         }
@@ -331,6 +335,20 @@ public class LauncherFragment extends Fragment {
 
     // ---- Launch -------------------------------------------------------------
 
+    /** The game asked to be restarted (its own Restart button): its process is on the way out;
+     *  start the instance once it is gone, polling briefly, so the new one is not fronted into
+     *  the dying one. */
+    private void restartWhenGameIsGone(String name, int attempt) {
+        if (!isAdded()) return;
+        if (InstanceShortcuts.isGameRunning(requireContext()) && attempt < 25) {
+            new Handler(Looper.getMainLooper()).postDelayed(() -> restartWhenGameIsGone(name, attempt + 1), 200);
+            return;
+        }
+        for (GameInstance gi : instances) {
+            if (gi.getName().equals(name)) { launchInstance(gi); break; }
+        }
+    }
+
     private void launchInstance(GameInstance gi) {
         if (gi == null) return;
         // Block launching a game copy that's missing base content (Data/Core etc.) — it would just
@@ -387,6 +405,51 @@ public class LauncherFragment extends Fragment {
         startGame(gi);
     }
 
+    /**
+     * Encodes new or changed textures (TextureCache) before the native engine starts: a progress
+     * dialog with Skip while it runs, nothing shown when the cache is current. Called on the launch
+     * thread; returns when the cache is built or skipped (what is missing loads the old way).
+     */
+    private void buildTextureCache(GameInstance gi) {
+        List<File> todo = com.rimdroid.game.TextureCache.stale(gi);
+        boolean convert = com.rimdroid.game.TextureCache.assetsNeedConversion(gi);
+        if (!com.rimdroid.game.TextureCache.assetsWanted()) com.rimdroid.game.TextureCache.clearConverted(gi);
+        if (todo.isEmpty() && !convert) return;
+        Log.i(TAG, "Texture cache: " + todo.size() + " texture(s) to encode" + (convert ? ", game assets to convert" : ""));
+        java.util.concurrent.atomic.AtomicBoolean stop = new java.util.concurrent.atomic.AtomicBoolean();
+        Handler ui = new Handler(Looper.getMainLooper());
+        androidx.appcompat.app.AlertDialog[] dialog = new androidx.appcompat.app.AlertDialog[1];
+        TextView[] label = new TextView[1];
+        android.widget.ProgressBar[] bar = new android.widget.ProgressBar[1];
+        ui.post(() -> {
+            if (!isAdded()) return;
+            View v = LayoutInflater.from(requireContext()).inflate(R.layout.dialog_texcache_progress, null);
+            label[0] = v.findViewById(R.id.tv_texcache_progress);
+            bar[0] = v.findViewById(R.id.pb_texcache);
+            bar[0].setMax(todo.size());
+            label[0].setText(getString(R.string.texcache_progress, 0, todo.size()));
+            dialog[0] = new com.google.android.material.dialog.MaterialAlertDialogBuilder(requireContext())
+                    .setTitle(R.string.texcache_title)
+                    .setMessage(R.string.texcache_message)
+                    .setView(v)
+                    .setCancelable(false)
+                    .setNegativeButton(R.string.texcache_skip, (d, w) -> stop.set(true))
+                    .show();
+        });
+        com.rimdroid.game.TextureCache.Progress show = (done, total) -> ui.post(() -> {
+            if (label[0] != null) label[0].setText(getString(R.string.texcache_progress, done, total));
+            if (bar[0] != null) { bar[0].setMax(total); bar[0].setProgress(done); }
+        });
+        if (!todo.isEmpty()) com.rimdroid.game.TextureCache.build(gi, todo, show, stop);
+        // The game's own Core/DLC textures (resources.assets): one pass, not interruptible per
+        // texture, so Skip only prevents it from starting.
+        if (convert && !stop.get()) {
+            ui.post(() -> { if (label[0] != null) label[0].setText(R.string.texcache_game_assets); });
+            com.rimdroid.game.TextureCache.convertAssets(gi, show);
+        }
+        ui.post(() -> { if (dialog[0] != null && dialog[0].isShowing()) dialog[0].dismiss(); });
+    }
+
     private void startGame(GameInstance gi) {
         LauncherPreferences.requireSingleton().setLastInstanceName(gi.getName());
         clearLog();
@@ -399,6 +462,7 @@ public class LauncherFragment extends Fragment {
             appendLog("Starting the native engine...");
             new Thread(() -> {
                 try {
+                    if (gi.settings().isTexCache()) buildTextureCache(gi);
                     app.startActivity(com.rimdroid.game.NativeEngine.prepare(app, gi));
                 } catch (java.io.IOException | RuntimeException e) {
                     Log.e(TAG, "Native engine launch failed", e);

@@ -109,6 +109,25 @@ target_link_libraries(asoundshim
 )
 
 # ---------------------------------------------------------------------------
+# librimdroidtex.so — the native engine's texture cache encoder: etcpak (BSD-3) ETC2 + bcdec (MIT)
+# for DDS, behind TextureEncoder.java. Always -O2: a block encoder at -O0 is 10x slower and the
+# cache is built while the player waits (see texcache/texcache.cpp).
+# ---------------------------------------------------------------------------
+add_library(rimdroidtex SHARED
+    texcache/texcache.cpp
+    texcache/assetconv.cpp
+    texcache/etcpak/ProcessRGB.cpp
+    texcache/etcpak/Tables.cpp
+    texcache/etcpak/Dither.cpp
+)
+target_compile_options(rimdroidtex PRIVATE -O2 -fno-exceptions -fno-rtti)
+target_link_libraries(rimdroidtex
+    log
+    jnigraphics
+    vulkan
+)
+
+# ---------------------------------------------------------------------------
 # box64 — root-level submodule (path: <project_root>/box64)
 # CMAKE_CURRENT_SOURCE_DIR is app/src/main/cpp, so go up 4 levels.
 #

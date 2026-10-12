@@ -352,6 +352,11 @@
     <string name="native_engine_label">原生引擎（实验性）</string>
     <string name="native_engine_hint">用为 Android 构建的游戏引擎运行游戏，无需模拟。仅限 RimWorld 1.6。早期测试：请先备份存档。</string>
     <string name="native_engine_failed">无法启动原生引擎：%1$s</string>
+    <string name="texcache_title">正在准备纹理</string>
+    <string name="texcache_message">正在为原生引擎转换新的或已更改的纹理。此过程只需一次，之后游戏加载更快、占用内存更少。</string>
+    <string name="texcache_progress">%1$d / %2$d</string>
+    <string name="texcache_skip">跳过</string>
+    <string name="texcache_game_assets">游戏纹理…</string>
     <string name="engine_label">引擎</string>
     <string name="engine_box64">完全模拟（box64）</string>
     <string name="engine_box64_hint">一切都通过 x86 模拟运行。兼容性最好，速度最慢。</string>

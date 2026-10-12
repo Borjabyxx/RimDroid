@@ -52,6 +52,8 @@ public class LauncherActivity extends AppCompatActivity {
     public static final String ACTION_LAUNCH_INSTANCE = "com.rimdroid.action.LAUNCH_INSTANCE";
     public static final String EXTRA_LAUNCH_INSTANCE = "instance";
     private String pendingLaunchInstance;
+    /** The request came from the running game (NativeUnityActivity.restartInstance): wait for it to end. */
+    private boolean pendingLaunchIsRestart;
 
     /** The instance a shortcut asked to start, once; null when there is none. */
     public String takeLaunchRequest() {
@@ -60,9 +62,17 @@ public class LauncherActivity extends AppCompatActivity {
         return name;
     }
 
+    public boolean takeLaunchIsRestart() {
+        boolean restart = pendingLaunchIsRestart;
+        pendingLaunchIsRestart = false;
+        return restart;
+    }
+
     private void readLaunchRequest(Intent intent) {
-        if (intent != null && ACTION_LAUNCH_INSTANCE.equals(intent.getAction()))
+        if (intent != null && ACTION_LAUNCH_INSTANCE.equals(intent.getAction())) {
             pendingLaunchInstance = intent.getStringExtra(EXTRA_LAUNCH_INSTANCE);
+            pendingLaunchIsRestart = intent.getBooleanExtra("restart", false);
+        }
     }
 
     @Override

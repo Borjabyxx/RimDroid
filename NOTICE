@@ -103,6 +103,14 @@ Harmony (0Harmony.dll) MIT License          Copyright (c) 2017 Andreas Pardeike
                        github.com/pardeike/Harmony, fetched from NuGet at build
                        time into RimDroid's built-in mod
 
+etcpak                 BSD 3-Clause License Copyright (c) 2013-2022 Bartosz Taudul
+                       github.com/wolfpld/etcpak - ETC2 encoder of the native
+                       engine's texture cache (app/src/main/cpp/texcache/etcpak)
+
+bcdec                  MIT License          Copyright (c) 2022 Sergii Kudlai
+                       github.com/iOrange/bcdec - DDS (BC1/BC3/BC7) decoding for
+                       the same cache
+
 box64                  MIT License          Copyright (c) 2020 ptitSeb
                        (RimDroid uses a fork: github.com/udarmolota/rimdroid-box64,
                         which remains MIT, same as upstream.)

@@ -145,6 +145,16 @@ public class InstanceSettings {
     // old "tex_shrink" was a boolean, reading it as an int would throw. ---
     public static final int TEX_NONE = 0, TEX_LOW = 1, TEX_ULTRA = 2;
 
+    // --- Native engine texture cache (TextureCache): Core/DLC/mod textures encoded to ETC2 once,
+    // before launch, and served to Unity by the bridge. Default on. ---
+    public boolean isTexCache() {
+        return p.getBoolean(pfx + "tex_cache", true);
+    }
+
+    public void setTexCache(boolean on) {
+        p.edit().putBoolean(pfx + "tex_cache", on).apply();
+    }
+
     /**
      * Low for a new instance: on the native engine it is the difference between loading and the
      * low-memory killer on an 8 GB phone with a big mod list (TECNO, 86 mods, 2026-10-11), and it

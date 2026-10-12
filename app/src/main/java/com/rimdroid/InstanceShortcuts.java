@@ -37,6 +37,17 @@ public final class InstanceShortcuts {
      * screen (GameActivity) by reordering it forward, the native engine (its own ":unity" process,
      * a singleTask activity) by starting it. Returns false when no game is running.
      */
+    /** A game process (box64 activity or the native engine's :unity process) is alive. */
+    public static boolean isGameRunning(Context context) {
+        if (GameActivity.running) return true;
+        android.app.ActivityManager am = (android.app.ActivityManager) context.getSystemService(Context.ACTIVITY_SERVICE);
+        List<android.app.ActivityManager.RunningAppProcessInfo> procs = am != null ? am.getRunningAppProcesses() : null;
+        if (procs != null)
+            for (android.app.ActivityManager.RunningAppProcessInfo p : procs)
+                if (p.processName != null && p.processName.endsWith(":unity")) return true;
+        return false;
+    }
+
     public static boolean bringRunningGameToFront(Context context) {
         if (GameActivity.running) {
             Intent i = new Intent(context, GameActivity.class);
