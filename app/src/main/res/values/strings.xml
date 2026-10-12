@@ -126,8 +126,8 @@ In the cloud: %2$s
     <!-- "What's new" dialog, shown once per version (LauncherFragment.maybeShowReleaseNotes). English
          only, like the release notes it is cut from. Read with getText, so <b>/<i> are kept; keep it on
          one line, because a line break inside a string resource turns into a leading space. -->
-    <string name="release_notes_title" translatable="false">What\'s new in v%1$s</string>
-    <string name="release_notes_body" translatable="false"><b>– Faster with Native ARM64 Mono (RimWorld 1.6)</b>\nThe emulator no longer runs in its strict, slow mode when Native ARM64 Mono is on. How much you gain depends on your phone: where the processor was holding the game back, FPS can rise a lot (twice on our test phone); where the graphics chip is the limit, FPS stays about the same and the game speed (TPS) goes up instead.\n\n<b>– Performance bar</b>\nSettings → Frame rate → <b>In-game display</b>: <b>FPS</b>, or <b>Full info</b> with GPU and CPU load, memory, power, temperature and an FPS graph.\n\n<b>– Easier controls editor</b>\nIts buttons moved to a small row at the bottom, and <b>Grid: on</b> lines buttons up evenly.</string>
+    <string name="release_notes_title">What\'s new in v%1$s</string>
+    <string name="release_notes_body"><b>– A native engine for RimWorld 1.6 (experimental)</b>\nRimWorld 1.6 can now run on the game\'s own engine built for Android, with nothing emulated. It is the fastest way to play and the lightest on memory.\n\n<b>– Workshop collections</b>\nPaste a Steam Workshop collection link (or its ID) into the Workshop mod downloader and every mod in it is fetched.\n\n<b>– Home-screen shortcuts</b>\nThe instance\'s ⋮ menu → Add to home screen.\n\n<b>– Simplified Chinese</b>\nThe launcher and the in-app wiki.\n\n<i>Note: RimWorld 1.5 is legacy. 1.6 is the default download.</i></string>
     <!-- Drawer footer icon labels (accessibility) -->
     <string name="link_x">RimDroid on X</string>
     <string name="link_reddit">RimDroid on Reddit</string>

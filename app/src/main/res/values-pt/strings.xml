@@ -370,4 +370,6 @@ Na nuvem: %2$s
     <string name="vk_compat_on">Ligada</string>
     <string name="vk_compat_off">Desligada</string>
     <string name="vk_compat_hint">Ligue se a imagem congela no logotipo ou no menu enquanto o jogo continua rodando. A imagem é a mesma; o Unity monta cada quadro de outro jeito. Vale a partir do próximo início.</string>
+    <string name="release_notes_title">Novidades da v%1$s</string>
+    <string name="release_notes_body"><b>– Motor nativo para RimWorld 1.6 (experimental)</b>\nO RimWorld 1.6 agora pode rodar no próprio motor do jogo compilado para Android, sem nenhuma emulação. É a forma mais rápida de jogar e a que menos usa memória.\n\n<b>– Coleções do Workshop</b>\nCole o link de uma coleção do Steam Workshop (ou o ID dela) no baixador de mods do Workshop e todos os mods dela serão baixados.\n\n<b>– Atalhos na tela inicial</b>\nMenu ⋮ da instância → Adicionar à tela inicial.\n\n<b>– Chinês simplificado</b>\nO launcher e a wiki do app.\n\n<i>Nota: o RimWorld 1.5 agora é antigo. O download padrão é o 1.6.</i></string>
 </resources>
