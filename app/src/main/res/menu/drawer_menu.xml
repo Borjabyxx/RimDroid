@@ -12,6 +12,10 @@
             android:icon="@drawable/mt_icon_settings"
             android:title="@string/nav_custom_driver" />
         <item
+            android:id="@+id/action_mods"
+            android:icon="@drawable/mt_icon_mods"
+            android:title="@string/nav_mods" />
+        <item
             android:id="@+id/action_install_content"
             android:icon="@drawable/mt_icon_mods"
             android:title="@string/nav_install_content" />
@@ -57,21 +61,13 @@
             android:icon="@drawable/mt_icon_settings"
             android:title="@string/nav_settings" />
         <item
-            android:id="@+id/action_export_saves"
+            android:id="@+id/action_saves_transfer"
             android:icon="@drawable/mt_icon_save"
-            android:title="@string/nav_export_saves" />
+            android:title="@string/nav_saves_transfer" />
         <item
-            android:id="@+id/action_import_saves"
+            android:id="@+id/action_settings_transfer"
             android:icon="@drawable/mt_icon_folder_open"
-            android:title="@string/nav_import_saves" />
-        <item
-            android:id="@+id/action_export_settings"
-            android:icon="@drawable/mt_icon_settings"
-            android:title="@string/nav_export_settings" />
-        <item
-            android:id="@+id/action_import_settings"
-            android:icon="@drawable/mt_icon_folder_open"
-            android:title="@string/nav_import_settings" />
+            android:title="@string/nav_settings_transfer" />
     </group>
 
     <!-- 5) Diagnostics -->
