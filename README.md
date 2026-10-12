@@ -15,15 +15,21 @@ rendering, touch controls, gamepad support, and mods.
 
 ## Features
 
-- ✔️ Runs **RimWorld 1.5** and **RimWorld 1.6** (the native Linux x86_64 build) on ARM64 phones
-- ✔️ **Native ARM64 Mono** (RimWorld 1.6, on by default) — the game's own code runs natively instead
-  of through x86 emulation, noticeably faster at high game speed
+- ✔️ Runs **RimWorld 1.6** on ARM64 phones; **RimWorld 1.5** stays available as legacy
+- ✔️ **Native engine** (RimWorld 1.6, experimental, the default for new instances) — the game's own
+  engine built for Android, nothing emulated: the fastest way to play and the lightest on memory
+- ✔️ **Native ARM64 Mono** (RimWorld 1.6 on the emulated engine) — the game's own code runs natively
+  instead of through x86 emulation, noticeably faster at high game speed
 - ✔️ **Editable on-screen touch controls** — move / resize / opacity, grid snapping, add buttons bound
   to any key or mouse action
-- ✔️ **In-app downloads** — get the game and DLC from Steam or GOG, and Workshop mods from Steam
+- ✔️ **In-app downloads** — get the game and DLC from Steam or GOG, and Workshop mods and whole
+  Workshop collections from Steam
 - ✔️ **Steam Cloud saves** — pull your PC saves onto the phone and send them back
 - ✔️ **Mods** — Harmony patching works (tested: RimHUD, Pick Up And Haul, Camera+)
-- ✔️ **Multiple instances** — each install is a card with its own settings (renderer, driver, controls)
+- ✔️ **Mods screen** — switch mods on and off, delete them, sort the load order by the mods' own
+  rules (with warnings about missing and incompatible mods), drag to reorder
+- ✔️ **Multiple instances** — each install is a card with its own settings (engine, renderer,
+  driver, controls), and can get its own **home-screen shortcut**
 - ✔️ **Gamepad support** with a button-remapping wizard for controllers with swapped buttons
 - ✔️ **Physical keyboard and mouse**
 - ✔️ **Compatibility mode** — helps stubborn devices launch and lets mods load (Settings → Advanced)
@@ -32,9 +38,11 @@ rendering, touch controls, gamepad support, and mods.
 - ✔️ **Texture compression and render resolution** — less memory and more FPS on weaker phones
 - ✔️ **Custom Vulkan driver import** — a raw Turnip `.so` or an AdrenoTools `.zip`
 - ✔️ **Save / Settings / layout import & export**
-- ✔️ **In-app wiki** in English, Russian, Spanish and Portuguese
-- ✔️ Haptics, night mode, and Russian, Spanish and Portuguese translations
+- ✔️ **In-app wiki** in English, Russian, Spanish, Portuguese and Simplified Chinese
+- ✔️ Haptics, night mode, and Russian, Spanish, Portuguese and Simplified Chinese translations
 - ✔️ **On-screen keyboard** for text fields — Latin letters, RimWorld 1.6 only
+- ✔️ **CJK fonts** (Chinese / Japanese / Korean) — install the special
+  [RimDroidCJK mod](https://www.mediafire.com/file/s4axik3wwdvrtze/RimDroidCJKmod.zip/file)
 
 ## Project status & what to expect
 
@@ -108,6 +116,8 @@ all speeds can look the same. That's expected: the simulation, not rendering, is
 - [x] Native ARM64 Mono for RimWorld 1.6
 - [x] Game and DLC downloads from GOG
 - [x] Steam Cloud saves
+- [x] Native engine for RimWorld 1.6
+- [x] Mods screen with load-order sorting; Workshop collections
 - [ ] Typing in more languages with the on-screen keyboard
 - [ ] Quality-of-life features
 - [ ] Stable release, out of beta — coming soon
@@ -118,7 +128,8 @@ RimWorld officially ships only for x86_64. RimDroid runs the **native Linux buil
 ARM64: [box64](https://github.com/ptitSeb/box64) emulates the x86_64 Unity engine in-process. On
 RimWorld 1.6 the game's own code runs on a native ARM64 build of Unity's Mono by default (1.5, and 1.6
 with Native ARM64 Mono off, emulate Mono too). Graphics go through your phone's real GPU, and Android
-touch and gamepad input is injected straight into the game.
+touch and gamepad input is injected straight into the game. On RimWorld 1.6 an instance can also
+use the **native engine**: the game's own engine built for Android, with nothing emulated.
 
 There are two renderers, switchable per instance in Settings → Video. **Zink** (Mesa) turns the
 game's OpenGL into Vulkan and is the default. **[MobileGlues](https://github.com/MobileGL-Dev/MobileGlues)**
