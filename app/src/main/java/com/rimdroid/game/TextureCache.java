@@ -43,7 +43,7 @@ public final class TextureCache {
     public static final String DIR = "native_engine/texcache";
     public static final String EXT = ".rdtex";
     static final int MAGIC = 0x58544452;   // "RDTX"
-    static final int VERSION = 3;   // 1: red/blue swapped in ETC2 entries; 2: raw up to 128 px
+    static final int VERSION = 4;   // 1: red/blue swapped in ETC2 entries; 2: raw up to 128 px; 3: PNGs upside down
     static final int HEADER = 40;
 
     public interface Progress { void onProgress(int done, int total); }

@@ -15,7 +15,7 @@ namespace RimDroid
     static class TextureCacheLoader
     {
         const int Magic = 0x58544452;   // "RDTX"
-        const int Version = 3;
+        const int Version = 4;
         const int Header = 40;
 
         static readonly string dir = Env("RIMDROID_TEXCACHE_DIR");

@@ -129,10 +129,13 @@ Java_com_rimdroid_game_TextureEncoder_encodeBitmap(JNIEnv* env, jclass, jobject 
     void* pixels;
     if (AndroidBitmap_lockPixels(env, bitmap, &pixels) != ANDROID_BITMAP_RESULT_SUCCESS) return nullptr;
     // The bitmap is decoded with inPremultiplied = false: bytes are straight R,G,B,A, as the PNG
-    // holds them and as Unity's LoadImage would produce.
+    // holds them and as Unity's LoadImage would produce. Rows are reversed on the way: a bitmap
+    // runs top to bottom, a Unity texture bottom to top (LoadImage flips the same way), and
+    // without it every cached mod PNG showed upside down (tester, 2026-10-12). DDS files already
+    // store Unity's order and go through encodeRgba unflipped.
     std::vector<uint32_t> rgba((size_t)bi.width * bi.height);
     for (uint32_t y = 0; y < bi.height; y++)
-        memcpy(&rgba[(size_t)y * bi.width], (const uint8_t*)pixels + (size_t)y * bi.stride, (size_t)bi.width * 4);
+        memcpy(&rgba[(size_t)(bi.height - 1 - y) * bi.width], (const uint8_t*)pixels + (size_t)y * bi.stride, (size_t)bi.width * 4);
     AndroidBitmap_unlockPixels(env, bitmap);
     return encodeChain(env, rgba.data(), (int)bi.width, (int)bi.height, mips, info);
 }
