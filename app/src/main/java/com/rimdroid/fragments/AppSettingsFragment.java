@@ -57,6 +57,9 @@ public class AppSettingsFragment extends Fragment {
             AppCompatDelegate.setDefaultNightMode(m);   // recreates the activity to apply
         });
 
+        // The cache serves MobileGlues under box64 only; the native engine has its own texture
+        // cache in the instance settings. No such instance → no card.
+        v.findViewById(R.id.card_etc2_cache).setVisibility(anyMobileGluesInstance() ? View.VISIBLE : View.GONE);
         Switch swCache = v.findViewById(R.id.sw_etc2_cache);
         TextView tvSize = v.findViewById(R.id.tv_etc2_cache_size);
         Button btnClear = v.findViewById(R.id.btn_etc2_cache_clear);
@@ -74,6 +77,15 @@ public class AppSettingsFragment extends Fragment {
             }
             showCacheSize(tvSize, btnClear);
         });
+    }
+
+    private static boolean anyMobileGluesInstance() {
+        for (com.rimdroid.game.GameInstance gi : com.rimdroid.game.GameInstanceManager.requireSingleton().getInstances()) {
+            com.rimdroid.InstanceSettings is = gi.settings();
+            if (is.getEngine() != com.rimdroid.InstanceSettings.ENGINE_NATIVE
+                    && is.getRenderer() == LauncherPreferences.Renderer.MOBILEGLUES) return true;
+        }
+        return false;
     }
 
     private static File etc2CacheFile() {

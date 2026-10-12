@@ -45,6 +45,14 @@
                 android:text="@string/theme_dark" />
         </RadioGroup>
 
+        <!-- MobileGlues only (box64 engine): hidden while every instance runs the native engine. -->
+        <LinearLayout
+            android:id="@+id/card_etc2_cache"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:visibility="gone">
+
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
@@ -88,6 +96,8 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="@string/etc2_cache_clear" />
+        </LinearLayout>
+
         </LinearLayout>
 
     </LinearLayout>
