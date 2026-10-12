@@ -379,7 +379,7 @@ public class DownloadFragment extends Fragment implements SteamDownloadState.Vie
         // The worker already applied the recommendation, even if this fragment was detached when
         // the download finished. Here we only show its one-time explanation.
         com.rimdroid.GpuDriverAdvisor.Result driver = SteamDownloadState.get().takeDriverResult();
-        if (driver != null && driver.applied && isAdded()) showDriverResult(driver);
+        if (driver != null && driver.announce && isAdded()) showDriverResult(driver);
     }
 
     @Override

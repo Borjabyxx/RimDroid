@@ -203,8 +203,12 @@ public class InstallerService extends Service {
         // Game-fix reference assets must exist before configure (steam-lib normalization reads
         // them from files/gamefix). Idempotent; normally a no-op after first app start.
         RimWorldInstanceSetup.ensureGameFixAssets(getApplicationContext());
+        // Written for every 1.6 instance (box64 needs it if the instance is ever switched to it);
+        // the message names the engine the instance will actually start on.
         if (RimWorldInstanceSetup.configureDetected(instanceDir))
-            broadcastProgress("Configured RimWorld 1.6 renderer and texture compression.");
+            broadcastProgress(GpuDriverAdvisor.runsNative(instanceName)
+                    ? "Engine: native (the game's own engine for Android, Vulkan)."
+                    : "Configured RimWorld 1.6 renderer and texture compression.");
 
         // The install-time save fix (Assembly-CSharp bspatch) used to run here. Removed entirely
         // 2026-08-28: the save-bug root (box64's broken Android qsort mis-building Mono IMT

@@ -14,11 +14,16 @@ public final class GpuDriverAdvisor {
         public final String driverLabel; // e.g. "Turnip Adreno 6xx (legacy)"
         public final String driverSo;    // soName written to the instance
         public final boolean applied;    // false if the instance already had an explicit driver
-        Result(String gpuName, String driverLabel, String driverSo, boolean applied) {
+        /** Tell the player: only when the driver was set AND the instance will use it. The native
+         *  engine always draws with the phone's own Vulkan, so the message there was noise; the
+         *  driver is still written, ready if the instance is switched to box64 later. */
+        public final boolean announce;
+        Result(String gpuName, String driverLabel, String driverSo, boolean applied, boolean announce) {
             this.gpuName = gpuName;
             this.driverLabel = driverLabel;
             this.driverSo = driverSo;
             this.applied = applied;
+            this.announce = announce;
         }
     }
 
@@ -40,6 +45,19 @@ public final class GpuDriverAdvisor {
             s.setVulkanDriverSo(so);
             applied = true;
         }
-        return new Result(gpu.displayName(), label, so, applied);
+        return new Result(gpu.displayName(), label, so, applied, applied && !runsNative(instanceName));
+    }
+
+    /** The instance will start on the native engine (1.6, module present, engine chosen). */
+    public static boolean runsNative(String instanceName) {
+        try {
+            com.rimdroid.game.GameInstanceManager mgr = com.rimdroid.game.GameInstanceManager.requireSingleton();
+            mgr.reload();
+            com.rimdroid.game.GameInstance gi = mgr.getByName(instanceName);
+            return gi != null && com.rimdroid.game.NativeEngine.isSupported(gi)
+                    && gi.settings().getEngine() == InstanceSettings.ENGINE_NATIVE;
+        } catch (RuntimeException e) {
+            return false;
+        }
     }
 }

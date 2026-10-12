@@ -168,7 +168,7 @@ public class NewInstanceFragment extends Fragment {
                     com.rimdroid.GpuDriverAdvisor.applyRecommendedDriver(inst);
             mainHandler.post(() -> {
                 if (!isAdded() || getView() == null) return;
-                if (!r.applied) { Navigation.findNavController(requireView()).popBackStack(); return; }
+                if (!r.announce) { Navigation.findNavController(requireView()).popBackStack(); return; }
                 new com.google.android.material.dialog.MaterialAlertDialogBuilder(requireContext())
                         .setTitle(R.string.driver_auto_set_title)
                         .setMessage(getString(R.string.driver_auto_set, r.gpuName, r.driverLabel))

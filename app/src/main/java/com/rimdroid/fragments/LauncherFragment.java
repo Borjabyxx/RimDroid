@@ -536,7 +536,7 @@ public class LauncherFragment extends Fragment {
             final com.rimdroid.GpuDriverAdvisor.Result r =
                     com.rimdroid.GpuDriverAdvisor.applyRecommendedDriver(inst);
             mainHandler.post(() -> {
-                if (!isAdded() || getView() == null || !r.applied) return;
+                if (!isAdded() || getView() == null || !r.announce) return;
                 new com.google.android.material.dialog.MaterialAlertDialogBuilder(requireContext())
                         .setTitle(R.string.driver_auto_set_title)
                         .setMessage(getString(R.string.driver_auto_set, r.gpuName, r.driverLabel))

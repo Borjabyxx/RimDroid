@@ -807,13 +807,19 @@ public class SteamDownloadSpike implements Runnable, IDownloadListener, Cancella
                 // crashes in UnityPlayer while beginning its first command buffer, before Mono or
                 // any mods load. Texture compression is safe with the CompressBC low-quality shim
                 // and is required to keep 1.6 + DLC within the RAM budget on 6-8 GB devices.
+                // Written for every 1.6 instance: it is what box64 needs if the instance is ever
+                // switched to it. The log names the engine the instance will actually start on.
                 RimWorldInstanceSetup.configure(new File(installDir), true);
-                progress("Configured RimWorld 1.6 renderer (X11 + ZFA/Zink + texture compression).");
             }
             // The install-time save fix (Assembly-CSharp bspatch) used to run here. Removed
             // entirely 2026-08-28 — root-fixed in box64 (see InstallerService for the history).
             LauncherPreferences.requireSingleton().setLastInstanceName(instanceName);
             GameInstanceManager.requireSingleton().reload();
+            if (version == Version.V1_6) {
+                progress(GpuDriverAdvisor.runsNative(instanceName)
+                        ? "Engine: native (the game's own engine for Android, Vulkan)."
+                        : "Configured RimWorld 1.6 renderer (X11 + ZFA/Zink + texture compression).");
+            }
             progress("Instance '" + instanceName + "' is now installed (" + RIMWORLD_APP_ID + ").");
             backupInstanceZip(new File(installDir));
         } catch (Throwable t) {
