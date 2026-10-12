@@ -185,7 +185,18 @@ public class InputControlsView extends View {
         return v < 0 ? 0 : (v > max ? max : v);
     }
 
+    // The overlay cursor is for the stick and the touches; a physical mouse on the native engine has the
+    // game's own cursor under it, and two cursors at once confuse (tester, 2026-10-12).
+    private boolean cursorVisible = true;
+
+    public void setCursorVisible(boolean visible) {
+        if (cursorVisible == visible) return;
+        cursorVisible = visible;
+        invalidate();
+    }
+
     public void moveCursorBy(float dx, float dy) {
+        setCursorVisible(true);   // the stick is in use
         // Keep the cursor inside the game rect (so it aligns 1:1 with the on-screen game cursor
         // and never strays into the black letterbox bars). Fall back to the full view if unset.
         float minX = gameW > 0 ? gameLeft : 0;
@@ -277,7 +288,7 @@ public class InputControlsView extends View {
             if (!editMode && controlsHidden && !isControlsToggle(el)) continue;
             el.draw(c);
         }
-        if (!editMode && curX >= 0) drawCursor(c);
+        if (!editMode && curX >= 0 && cursorVisible) drawCursor(c);
     }
 
     private void drawGrid(Canvas c) {

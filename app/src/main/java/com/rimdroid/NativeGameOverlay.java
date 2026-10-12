@@ -430,7 +430,14 @@ public class NativeGameOverlay extends FrameLayout
                 || e.getToolType(0) == MotionEvent.TOOL_TYPE_MOUSE;
     }
 
+    // A mouse press must not land on the on-screen buttons under it (GameActivity intercepts the
+    // same way): the mouse is the game's, the buttons are for fingers.
+    @Override public boolean onInterceptTouchEvent(MotionEvent e) {
+        return isMouse(e) || super.onInterceptTouchEvent(e);
+    }
+
     private boolean mouseMotion(MotionEvent e) {
+        controls.setCursorVisible(false);   // the game draws its own cursor for a real mouse
         switch (e.getActionMasked()) {
             case MotionEvent.ACTION_HOVER_ENTER:
             case MotionEvent.ACTION_HOVER_MOVE:
@@ -450,6 +457,7 @@ public class NativeGameOverlay extends FrameLayout
     private int mouseButtonsDown;   // MotionEvent.BUTTON_* we reported pressed
 
     private boolean mouseTouch(MotionEvent e) {
+        controls.setCursorVisible(false);
         int x = gameX(e.getX()), y = gameY(e.getY());
         switch (e.getActionMasked()) {
             case MotionEvent.ACTION_DOWN:
