@@ -530,6 +530,18 @@ IL2MONO_API int il2cpp_init(const char* domain_name)
         LOGE("mono_jit_init_version failed");
         return 0;
     }
+    // The domain's base directory and configuration file, as Unity's desktop player sets them. Without
+    // a config path System.Configuration throws "The 'ExeConfigFilename' argument cannot be null", and
+    // everything that reads configuration fails with it: XmlSerializer (NL Facial Animation drew no
+    // faces), mods writing settings or caches (TrueTerrainColors). The file need not exist: a missing
+    // one reads as empty. BepInEx (bepinex.c) may set its own afterwards.
+    {
+        const char* base_dir = il2mono_cfg.cwd[0] ? il2mono_cfg.cwd : il2mono_cfg.primary_managed_dir;
+        char config[1100];
+        snprintf(config, sizeof(config), "%s/RimWorldLinux.exe.config", base_dir);
+        p_mono_domain_set_config(domain, base_dir, config);
+        LOGI("domain config %s (base %s)", config, base_dir);
+    }
 
     pthread_mutex_lock(&g_icall_lock);
     for (int i = 0; i < g_pending_count; i++)
