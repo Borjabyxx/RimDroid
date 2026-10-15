@@ -80,8 +80,8 @@
         <li>You need to own <b>RimWorld</b> on <b>Steam</b> or <b>GOG</b>. RimDroid runs the
             <b>Linux</b> version of the game, <b>RimWorld 1.6</b>; 1.5 still runs as it is (legacy), but new features and fixes are for 1.6 only.</li>
         <li>Get the game into the app. With Steam, open the side menu and tap
-            <b>Steam Downloads</b>: the game downloads straight into a ready instance. For GOG and
-            the other ways, see <a href="#get-game">Getting the game</a>.</li>
+            <b>Steam Downloads</b>: the game downloads as a .zip, and <b>Create an instance</b> makes
+            a ready instance from it. For GOG and the other ways, see <a href="#get-game">Getting the game</a>.</li>
         <li>An <b>instance</b> is one installed copy of the game. Each one has its own card on the
             main screen and its own settings behind the <b>gear icon</b>. You can keep several, for
             example 1.5 and 1.6 side by side.</li>
@@ -112,18 +112,24 @@
         <h3>1. From Steam, in the app</h3>
         <ol>
             <li>Open the side menu and tap <b>Steam Downloads</b>, tab <b>Game</b>.</li>
-            <li>Choose <b>RimWorld 1.5</b> or <b>RimWorld 1.6</b> and enter a name for the new
-                instance.</li>
+            <li>Choose <b>RimWorld 1.6</b> or, where the app offers it, <b>RimWorld 1.7</b>. While
+                Steam has no stable 1.7, the app takes the latest build of its unstable (beta)
+                branch.</li>
             <li>Sign in with your Steam account. Your login goes to Steam only and is not stored.
                 Approve the sign-in in the Steam Mobile app, or enter the Steam Guard code.</li>
-            <li>Tap <b>Download</b>. The game goes straight into a new instance: no PC and no
-                archives needed.</li>
-            <li>If the download stops, start it again with the <b>same instance name</b> and it
-                continues where it stopped.</li>
+            <li>Tap <b>Download</b>. The game is saved as a .zip into <b>Download/RimDroid</b>,
+                named after its Steam build (this needs <b>All files access</b>). If that build is
+                already there, nothing is downloaded again.</li>
+            <li>Tap <b>Create an instance</b>: the new instance is made from that zip. The same zip
+                can make more instances later, like any game zip.</li>
+            <li>If the download stops, start it again with the same version and it continues where
+                it stopped.</li>
         </ol>
         <p>
-            To get an older build instead of the recommended one, enter its <b>Manifest ID</b> in
-            the advanced field (the IDs are listed on SteamDB). Otherwise leave it empty.
+            To get another build instead of the default one, enter its <b>Manifest ID</b> in
+            the advanced field (the IDs are listed on SteamDB). For a build of the unstable branch,
+            also tick <b>Manifest from the unstable branch (beta)</b>. Otherwise leave the field
+            empty.
         </p>
     </section>
 
@@ -288,11 +294,14 @@
     <ul>
         <li><b>Render resolution</b>: a lower resolution gives more FPS on weak GPUs and a bigger
             interface; fullscreen at the phone's own resolution is the sharpest.
-            <b>Black margins 1280×720</b> is the fastest.</li>
+            <b>Black margins 1366×768</b> is the fastest.</li>
         <li><b>Texture compression</b> shrinks textures to save memory and gain FPS, and is needed
             to load several DLC on weaker phones. It mainly affects plants and resources; pawns and
             animals are never touched. <b>Low</b> is a good balance, <b>Ultra low</b> is a bit
             faster but plants look blurry.</li>
+        <li><b>Text size</b> (RimWorld 1.7 only): 100 / 120 / 130 / 140 %, 120 by default. Only the
+            letters grow, windows and buttons keep their size; at 130–140 % some labels in narrow
+            fields may not fit.</li>
         <li><b>In-game display</b>: <b>FPS</b> puts the frame rate in the top-left corner; <b>Full info</b>
             shows a bar at the top with GPU and CPU load, memory, power draw, temperature and an FPS
             graph — handy to see what slows the game down. Takes effect on the next launch.</li>
@@ -427,7 +436,7 @@
         <li><b>Texture compression</b> (No / Low / Ultra low) works here too, but shrinks only the big
             textures; icons and pawns stay sharp. Low is the default for a new instance: on an 8 GB phone
             with many mods the game may not load without it.</li>
-        <li>The resolution presets work as on box64: <b>Black margins 1280×720</b> draws the game in a
+        <li>The resolution presets work as on box64: <b>Black margins 1366×768</b> draws the game in a
             16:9 box with black margins.</li>
         <li>The mouse wheel zooms the map and scrolls lists, as on a PC (lists need the Harmony mod).
             The pinch and the Zoom in / Zoom out buttons do the same.</li>

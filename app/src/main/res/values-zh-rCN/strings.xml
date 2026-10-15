@@ -85,6 +85,8 @@
     <string name="fps_cap_hint">限制 FPS 可以减少波动，并把 CPU 让给游戏本身——在较弱的设备上能提高游戏速度（TPS）。如果计数器跳动不停，试试 60 或 30。</string>
     <string name="texq_label">纹理压缩</string>
     <string name="texq_hint">缩小纹理以节省内存并提高 FPS——在较弱的手机上加载多个 DLC 时必需。主要影响植被和资源；殖民者和动物不受影响。“低”是不错的平衡；“极低”更快一点，但植物会显得模糊。</string>
+    <string name="text_scale_label">文字大小</string>
+    <string name="text_scale_hint">放大游戏中的文字；窗口和按钮大小不变。在 130–140% 时，窄栏中的部分文字可能放不下。仅限 RimWorld 1.7。</string>
     <string name="texq_no">无</string>
     <string name="texq_low">低</string>
     <string name="texq_ultra">极低</string>
@@ -93,7 +95,7 @@
     <string name="fps_cap_off">不限制</string>
     <string name="render_res_label">渲染分辨率</string>
     <string name="render_res_relative">全屏</string>
-    <string name="render_res_fixed_169">黑边 1280×720——最快</string>
+    <string name="render_res_fixed_169">黑边 1366×768——最快</string>
     <string name="render_res_fullscreen">全屏</string>
     <string name="render_res_black_margins">黑边</string>
     <string name="render_res_hint">分辨率越低，弱 GPU 上 FPS 越高，界面也越大。原生分辨率最清晰。</string>
@@ -228,11 +230,12 @@
 
     <!-- Download screen -->
     <string name="download_game_title">从 Steam 下载 RimWorld</string>
-    <string name="download_version_note">把 Linux 版直接下载到一个新实例里——不需要 Termux，不需要电脑。</string>
-    <string name="download_instance_hint">实例名称（例如 RimWorld 1.5）</string>
+    <string name="download_version_note">把 Linux 版以 .zip 下载到 Download/RimDroid，再用它创建实例——不需要 Termux，不需要电脑。需要“所有文件访问权限”。</string>
     <string name="download_version_label">游戏版本</string>
-    <string name="download_version_15">RimWorld 1.5（旧版）</string>
     <string name="download_version_16">RimWorld 1.6</string>
+    <string name="download_version_17">RimWorld 1.7</string>
+    <string name="download_version_17_note">本版本发布时（2026年10月15日）RimWorld 1.7 还没有公开的稳定版，因此我们下载最新的 unstable 构建。</string>
+    <string name="download_unstable">该 Manifest 属于 unstable 分支（测试版）</string>
     <string name="download_user_hint">Steam 用户名</string>
     <string name="download_pass_hint">Steam 密码</string>
     <string name="download_login_note">你的登录信息会发送给 Steam（和 DepotDownloader 的方式一样），不会被保存。请在 Steam 手机应用里确认登录，或在提示时输入 Steam 令牌验证码。</string>
@@ -268,7 +271,7 @@
     <string name="gog_install_dlc">安装</string>
     <string name="gog_item_dlc">DLC · %1$s</string>
     <string name="new_instance_with_dlc">%1$s\n+ DLC：%2$d</string>
-    <string name="download_manifest_hint">高级：Manifest ID——留空 = 所选版本的最新构建</string>
+    <string name="download_manifest_hint">高级：Manifest ID——留空 = 所选版本的默认构建</string>
     <string name="download_start">下载</string>
     <string name="download_tab_game">游戏</string>
     <string name="download_tab_dlc">DLC</string>

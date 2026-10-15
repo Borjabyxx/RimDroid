@@ -4,8 +4,10 @@ using UnityEngine;
 
 namespace RimDroid
 {
-    // Runtime bindings to the player's own unmodified RimWorld 1.6 assembly. Cached once, so no
-    // dependency on proprietary game DLLs is needed in CI or in the APK's bridge assembly.
+    // Runtime bindings to the player's own RimWorld 1.6 assembly: the one the game runs, which is not
+    // always the first Assembly-CSharp — Prepatcher loads a patched copy and restarts the game in it
+    // (Bridge follows it with a new GameApi). Resolved by reflection, so no dependency on proprietary
+    // game DLLs is needed in CI or in the APK's bridge assembly.
     sealed class GameApi
     {
         const BindingFlags Flags = BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static | BindingFlags.Instance;
@@ -17,7 +19,8 @@ namespace RimDroid
         readonly CameraApi map, planet;
         internal readonly MethodInfo BeginScrollView;
 
-        static Type GameType(string name) { return Type.GetType(name + ", Assembly-CSharp", true); }
+        readonly Assembly assembly;
+        Type GameType(string name) { return assembly.GetType(name, true); }
         static FieldInfo Field(Type type, string name)
         {
             return type.GetField(name, Flags) ?? throw new MissingFieldException(type.FullName, name);
@@ -30,8 +33,9 @@ namespace RimDroid
         static float Number(FieldInfo f, object instance) { return (float)f.GetValue(instance); }
         static float Number(PropertyInfo p, object instance = null) { return (float)Read(p, instance); }
 
-        internal GameApi()
+        internal GameApi(Assembly game)
         {
+            assembly = game;
             Type find = GameType("Verse.Find"), ui = GameType("Verse.UI");
             windowStack = Property(find, "WindowStack");
             currentMap = Property(find, "CurrentMap");

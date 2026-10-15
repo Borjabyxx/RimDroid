@@ -47,6 +47,8 @@ public final class SteamDownloadState
     private String pendingFinishedMessage;
     /** Driver selection is applied by the worker; the UI only consumes this result for its dialog. */
     private GpuDriverAdvisor.Result pendingDriverResult;
+    /** The zip of the last GAME download (instances are created from it), else null. */
+    private volatile java.io.File gameZip;
 
     public boolean isDownloading() { return downloading; }
     public boolean isCancelling() { return cancelling; }
@@ -54,6 +56,7 @@ public final class SteamDownloadState
     public int getPercent() { return percent; }
     public boolean isIndeterminate() { return indeterminate; }
     public String getAdviseInstance() { return adviseInstance; }
+    public java.io.File getGameZip() { return gameZip; }
 
     public synchronized GpuDriverAdvisor.Result takeDriverResult() {
         GpuDriverAdvisor.Result result = pendingDriverResult;
@@ -90,6 +93,7 @@ public final class SteamDownloadState
         indeterminate = true;
         percent = -1;
         this.adviseInstance = adviseInstance;
+        gameZip = null;
         synchronized (this) {
             pendingFinishedMessage = null;
             pendingDriverResult = null;
@@ -116,6 +120,11 @@ public final class SteamDownloadState
         percent = Math.max(0, Math.min(100, p));
         indeterminate = false;
         main.post(() -> { if (view != null) view.onPercent(percent, false); });
+    }
+
+    @Override
+    public void onGameZip(java.io.File zip) {
+        gameZip = zip;
     }
 
     @Override

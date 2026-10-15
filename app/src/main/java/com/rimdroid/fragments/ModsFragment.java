@@ -141,6 +141,9 @@ public class ModsFragment extends Fragment {
             return;
         }
         File dir = new File(gi.getGamePath());
+        // A new instance has no ModsConfig.xml until the game's first start: write the one the game
+        // would, so its mods can be switched on right away.
+        if (!running) ModList.ensureConfig(dir);
         List<ModList.Mod> mods = ModList.installed(dir);
         List<String> order = ModList.activeOrder(dir);
         tvNoConfig.setVisibility(order == null ? View.VISIBLE : View.GONE);

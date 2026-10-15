@@ -454,6 +454,17 @@ public class LauncherFragment extends Fragment {
         LauncherPreferences.requireSingleton().setLastInstanceName(gi.getName());
         clearLog();
 
+        // RimWorld 1.7 (Waylith on .NET, experimental): no Unity, no box64 — .NET in its own process.
+        if (com.rimdroid.game.DotnetEngine.isWaylith(gi)) {
+            if (!com.rimdroid.game.DotnetEngine.isAvailable(requireContext())) {
+                appendLog("RimWorld 1.7 needs the .NET engine, which is not in this build of RimDroid.");
+                return;
+            }
+            appendLog("Starting RimWorld 1.7 on .NET (experimental)...");
+            requireContext().startActivity(com.rimdroid.game.DotnetEngine.launchIntent(requireContext(), gi));
+            return;
+        }
+
         // Native engine (experimental): Unity's Android player in its own process instead of box64.
         // Preparing writes the data archive (first launch: a few seconds), so off the UI thread.
         if (gi.settings().getEngine() == com.rimdroid.InstanceSettings.ENGINE_NATIVE

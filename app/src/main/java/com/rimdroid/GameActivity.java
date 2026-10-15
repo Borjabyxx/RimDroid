@@ -371,7 +371,7 @@ public class GameActivity extends Activity implements SurfaceHolder.Callback {
         int sw = Math.max(usableW, usableH);   // landscape width  (full screen)
         int sh = Math.min(usableW, usableH);   // landscape height (full screen)
         // Effective render scale = stored value raised to the per-device floor, so RimWorld's UI
-        // never drops below 1280x720. Per-instance when launched from a card; global as a fallback
+        // never drops below 1280x768. Per-instance when launched from a card; global as a fallback
         // (e.g. the smoke test, which has no instance).
         if (instanceName != null) {
             com.rimdroid.InstanceSettings is = new com.rimdroid.InstanceSettings(instanceName);
@@ -391,20 +391,21 @@ public class GameActivity extends Activity implements SurfaceHolder.Callback {
         }
 
         if (fixedRes != com.rimdroid.InstanceSettings.FIXED_NONE) {
-            // A rect of the chosen shape centred on the screen, then a buffer of exactly N x 720
-            // inside it. Because the rect has that exact aspect, scale (targetW / boxW) lands the
-            // height on 720 with no rounding — so the existing setFixedSize / touch-mapping /
+            // A rect of the chosen shape centred on the screen, then a buffer of N x 768 inside
+            // it (1366x768 / 1024x768: RimWorld's own minimum height; at 720 the Needs tab of a
+            // colonist with 8+ needs lost its top). Because the rect has that aspect, scale
+            // (targetW / boxW) lands the height on 768 — so the existing setFixedSize / touch-mapping /
             // Prefs-pinning paths need no changes at all. Whatever is left over stays black: that
             // is the margin the on-screen buttons can sit on.
             boolean wide = (fixedRes == com.rimdroid.InstanceSettings.FIXED_720_16_9);
             final float ASPECT  = wide ? 16f / 9f : 4f / 3f;
-            final int   TARGET_W = wide ? 1280 : 960;
+            final int   TARGET_W = wide ? 1366 : 1024;
             boxH = sh;
             boxW = Math.round(sh * ASPECT);
             if (boxW > sw) { boxW = sw; boxH = Math.round(sw / ASPECT); }
             boxLeft = (sw - boxW) / 2;
             boxTop  = (sh - boxH) / 2;
-            // Overrides the render-scale setting on purpose — this mode IS the resolution. 720 lines
+            // Overrides the render-scale setting on purpose — this mode IS the resolution. 768 lines
             // is also our readability floor, so pinning it can't make the UI too small.
             renderScale = (float) TARGET_W / boxW;
             // Log.i alone doesn't reach rimdroid.log (logcat race), and this geometry is exactly

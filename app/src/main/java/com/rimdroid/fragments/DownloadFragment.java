@@ -33,7 +33,8 @@ import java.util.concurrent.CompletableFuture;
 /**
  * "Download game (Steam)" screen — front-end for the in-app Steam downloader (SteamDownloadSpike).
  * One page, three tabs sharing the Steam login + console log:
- *   • Game — downloads RimWorld 1.5 into instances/&lt;name&gt; (launchable).
+ *   • Game — downloads RimWorld 1.6 or 1.7 as a .zip into /Download/RimDroid, then offers to create
+ *     an instance from it (needs All-files access).
  *   • DLC  — downloads each owned DLC as a portable .zip into /Download/RimDroid (needs All-files access).
  *   • Mods — Workshop (anonymous) — coming soon.
  * Login is sent to Steam (like DepotDownloader) and never stored; the token lives only in memory.
@@ -42,9 +43,9 @@ public class DownloadFragment extends Fragment implements SteamDownloadState.Vie
 
     private final Handler mainH = new Handler(Looper.getMainLooper());
 
-    private EditText etInstance, etUser, etPass, etManifest, etModsIds, etModsBrowserId;
-    private Button btnStart, btnDlcStart, btnModsStart, btnModsBrowser, btnCancel;
-    private CheckBox cbRoyalty, cbIdeology, cbBiotech, cbAnomaly, cbOdyssey;
+    private EditText etUser, etPass, etManifest, etModsIds, etModsBrowserId;
+    private Button btnStart, btnDlcStart, btnModsStart, btnModsBrowser, btnCancel, btnCreateInstance;
+    private CheckBox cbRoyalty, cbIdeology, cbBiotech, cbAnomaly, cbOdyssey, cbUnstable;
     private android.widget.RadioGroup rgVersion;
     private ProgressBar progress;
     private TextView tvStatus;
@@ -60,17 +61,13 @@ public class DownloadFragment extends Fragment implements SteamDownloadState.Vie
     public void onViewCreated(@NonNull View v, @Nullable Bundle savedInstanceState) {
         super.onViewCreated(v, savedInstanceState);
         appCtx = requireContext().getApplicationContext();
-        etInstance = v.findViewById(R.id.et_dl_instance);
-        // Pre-fill the same default the ZIP-install screen uses ("RimWorld", or "RimWorld-2"…), so the
-        // field is never left blank. The download lands directly in instances/<name>, and re-running a
-        // download with the SAME name resumes it — so the name is worth showing, not guessing.
-        if (etInstance.getText().length() == 0)
-            etInstance.setText(com.rimdroid.AppStorage.freeDefaultInstanceName());
         etUser     = v.findViewById(R.id.et_dl_user);
         etPass     = v.findViewById(R.id.et_dl_pass);
         etManifest = v.findViewById(R.id.et_dl_manifest);
+        cbUnstable = v.findViewById(R.id.cb_dl_unstable);
         rgVersion  = v.findViewById(R.id.rg_dl_version);
         btnStart   = v.findViewById(R.id.btn_dl_start);
+        btnCreateInstance = v.findViewById(R.id.btn_dl_create_instance);
         btnDlcStart = v.findViewById(R.id.btn_dlc_start);
         cbRoyalty  = v.findViewById(R.id.cb_dlc_royalty);
         cbIdeology = v.findViewById(R.id.cb_dlc_ideology);
@@ -94,6 +91,7 @@ public class DownloadFragment extends Fragment implements SteamDownloadState.Vie
         btnCancel = v.findViewById(R.id.btn_dl_cancel);
         tvStatus.setMovementMethod(new ScrollingMovementMethod());   // make the log area scrollable
         btnStart.setOnClickListener(view -> startGame());
+        btnCreateInstance.setOnClickListener(view -> createInstance());
         btnDlcStart.setOnClickListener(view -> startDlc());
         btnModsStart.setOnClickListener(view -> startMods());
         btnModsBrowser.setOnClickListener(view -> openModInBrowser());
@@ -102,7 +100,8 @@ public class DownloadFragment extends Fragment implements SteamDownloadState.Vie
                 androidx.navigation.Navigation.findNavController(view).navigate(R.id.action_open_install));
 
         // Game / DLC / Mods selector → swap the visible section. Login block shown for Game + DLC.
-        // The "install downloaded content" button is for DLC/Mods only (Game makes an instance directly).
+        // The "install downloaded content" button is for DLC/Mods only (Game has its own "Create an
+        // instance" button for the zip it downloaded).
         com.google.android.material.button.MaterialButtonToggleGroup toggle =
                 v.findViewById(R.id.toggle_dl_type);
         toggle.addOnButtonCheckedListener((group, checkedId, isChecked) -> {
@@ -120,9 +119,19 @@ public class DownloadFragment extends Fragment implements SteamDownloadState.Vie
         });
         toggle.check(R.id.btn_type_game);   // default to Game
 
+        // 1.7 only in APKs that carry its .NET engine; its note says where the build comes from.
+        View rb17 = v.findViewById(R.id.rb_dl_17), note17 = v.findViewById(R.id.tv_dl_17_note);
+        if (!com.rimdroid.game.DotnetEngine.isAvailable(appCtx)) rb17.setVisibility(View.GONE);
         rgVersion.setOnCheckedChangeListener((group, checkedId) ->
-                updateOdysseyVisibility(checkedId == R.id.rb_dl_16));
-        updateOdysseyVisibility(rgVersion.getCheckedRadioButtonId() == R.id.rb_dl_16);
+                note17.setVisibility(checkedId == R.id.rb_dl_17 ? View.VISIBLE : View.GONE));
+        // The branch checkbox belongs to a manifest number: shown once one is typed.
+        etManifest.addTextChangedListener(new android.text.TextWatcher() {
+            @Override public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
+            @Override public void onTextChanged(CharSequence s, int start, int before, int count) {}
+            @Override public void afterTextChanged(android.text.Editable s) {
+                cbUnstable.setVisibility(s.toString().trim().isEmpty() ? View.GONE : View.VISIBLE);
+            }
+        });
 
         // Re-attach to a download already running in the background (the worker thread outlives this
         // fragment via SteamDownloadState), restoring the log + progress + "busy" state on return.
@@ -133,6 +142,7 @@ public class DownloadFragment extends Fragment implements SteamDownloadState.Vie
         boolean busy = st.isDownloading();
         setControlsEnabled(!busy);
         btnCancel.setVisibility(busy ? View.VISIBLE : View.GONE);
+        showCreateInstance(!busy);
         if (busy) {
             progress.setVisibility(View.VISIBLE);
             if (st.isIndeterminate() || st.getPercent() < 0) {
@@ -155,22 +165,31 @@ public class DownloadFragment extends Fragment implements SteamDownloadState.Vie
     // ---- Game ----
     private void startGame() {
         if (SteamDownloadState.get().isDownloading()) return;
-        final String name = text(etInstance);
-        if (name.isEmpty()) { etInstance.setError(getString(R.string.error_name_required)); return; }
         if (!loginFilled()) return;
 
-        long manifestId = 0L;   // 0 = recommended 1.5 build
+        // The game zip lands in the public /Download folder → needs All-files access on Android 11+.
+        if (!StorageAccess.hasAllFilesAccess()) {
+            new com.google.android.material.dialog.MaterialAlertDialogBuilder(requireActivity())
+                    .setTitle("Storage access needed")
+                    .setMessage("The game is saved as a zip into the public Download folder, and instances "
+                            + "are created from it. Please grant \"All files access\" to RimDroid, "
+                            + "then tap Download again.")
+                    .setPositiveButton("Grant", (d, w) -> StorageAccess.requestAllFilesAccess(requireActivity()))
+                    .setNegativeButton("Cancel", null)
+                    .show();
+            return;
+        }
+
+        long manifestId = 0L;   // 0 = the chosen version's default build
         try {
             String mt = text(etManifest);
-            if (!mt.isEmpty()) manifestId = Long.parseLong(mt);
+            if (!mt.isEmpty()) manifestId = Long.parseUnsignedLong(mt);
         } catch (NumberFormatException ignored) { /* blank/invalid → default */ }
 
-        SteamDownloadSpike.Version version = (rgVersion != null && rgVersion.getCheckedRadioButtonId() == R.id.rb_dl_16)
-                ? SteamDownloadSpike.Version.V1_6 : SteamDownloadSpike.Version.V1_5;
         SteamDownloadState st = SteamDownloadState.get();
-        SteamDownloadSpike dl = new SteamDownloadSpike(text(etUser), etPass.getText().toString(), name,
-                /* manifestOnly */ false, manifestId, version, st);
-        st.begin(appCtx, name);          // adviseInstance = name → auto-set GPU driver on success
+        SteamDownloadSpike dl = new SteamDownloadSpike(text(etUser), etPass.getText().toString(),
+                manifestId, cbUnstable.isChecked(), selectedVersion(), st);
+        st.begin(appCtx, null);          // the instance (and its driver) comes later, from the zip
         st.setActive(dl);
         beginUi();
         new Thread(dl, "rd-download").start();
@@ -205,10 +224,9 @@ public class DownloadFragment extends Fragment implements SteamDownloadState.Vie
             return;
         }
 
-        SteamDownloadSpike.Version version = (rgVersion != null && rgVersion.getCheckedRadioButtonId() == R.id.rb_dl_16)
-                ? SteamDownloadSpike.Version.V1_6 : SteamDownloadSpike.Version.V1_5;
         SteamDownloadState st = SteamDownloadState.get();
-        SteamDownloadSpike dl = SteamDownloadSpike.forDlc(text(etUser), etPass.getText().toString(), dlcs, version, st);
+        SteamDownloadSpike dl = SteamDownloadSpike.forDlc(text(etUser), etPass.getText().toString(), dlcs,
+                selectedVersion(), st);
         st.begin(appCtx, null);
         st.setActive(dl);
         beginUi();
@@ -318,11 +336,26 @@ public class DownloadFragment extends Fragment implements SteamDownloadState.Vie
         }, "rd-ggntw").start();
     }
 
+    // ---- Create an instance from the downloaded game zip (same screen the GOG downloader uses) ----
+    private void createInstance() {
+        java.io.File zip = SteamDownloadState.get().getGameZip();
+        if (zip == null || !zip.isFile()) { showCreateInstance(false); return; }
+        Bundle args = new Bundle();
+        args.putString(NewInstanceFragment.ARG_PRESELECTED_FILE, zip.getAbsolutePath());
+        androidx.navigation.Navigation.findNavController(requireView()).navigate(R.id.action_install_instance, args);
+    }
+
+    /** The button shows while a downloaded game zip is there to create an instance from. */
+    private void showCreateInstance(boolean allowed) {
+        if (btnCreateInstance == null) return;
+        java.io.File zip = SteamDownloadState.get().getGameZip();
+        btnCreateInstance.setVisibility(allowed && zip != null && zip.isFile() ? View.VISIBLE : View.GONE);
+    }
+
     // ---- shared ----
-    private void updateOdysseyVisibility(boolean rimWorld16) {
-        if (cbOdyssey == null) return;
-        cbOdyssey.setVisibility(rimWorld16 ? View.VISIBLE : View.GONE);
-        if (!rimWorld16) cbOdyssey.setChecked(false);
+    private SteamDownloadSpike.Version selectedVersion() {
+        return (rgVersion != null && rgVersion.getCheckedRadioButtonId() == R.id.rb_dl_17)
+                ? SteamDownloadSpike.Version.V1_7 : SteamDownloadSpike.Version.V1_6;
     }
 
     private boolean loginFilled() {
@@ -336,6 +369,7 @@ public class DownloadFragment extends Fragment implements SteamDownloadState.Vie
         btnCancel.setVisibility(View.VISIBLE);
         progress.setVisibility(View.VISIBLE);
         progress.setIndeterminate(true);   // until the first real percent arrives
+        if (btnCreateInstance != null) btnCreateInstance.setVisibility(View.GONE);
         tvStatus.setText("");              // SteamDownloadState already cleared its log buffer in begin()
     }
 
@@ -345,10 +379,10 @@ public class DownloadFragment extends Fragment implements SteamDownloadState.Vie
         if (btnDlcStart != null) btnDlcStart.setEnabled(enabled);
         if (btnModsStart != null) btnModsStart.setEnabled(enabled);
         if (btnModsBrowser != null) btnModsBrowser.setEnabled(enabled);
-        if (etInstance != null) etInstance.setEnabled(enabled);
         if (etUser != null) etUser.setEnabled(enabled);
         if (etPass != null) etPass.setEnabled(enabled);
         if (etManifest != null) etManifest.setEnabled(enabled);
+        if (cbUnstable != null) cbUnstable.setEnabled(enabled);
         if (etModsIds != null) etModsIds.setEnabled(enabled);
     }
 
@@ -373,6 +407,7 @@ public class DownloadFragment extends Fragment implements SteamDownloadState.Vie
         setControlsEnabled(true);
         if (progress != null) progress.setVisibility(View.GONE);
         if (btnCancel != null) btnCancel.setVisibility(View.GONE);
+        showCreateInstance(true);
         if (isAdded()) {
             Toast.makeText(requireContext().getApplicationContext(), message, Toast.LENGTH_LONG).show();
         }

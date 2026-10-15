@@ -10,14 +10,10 @@ import org.w3c.dom.Node;
 import org.w3c.dom.NodeList;
 
 import java.io.File;
-import java.io.FileInputStream;
 import java.io.FileOutputStream;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.Files;
 import java.nio.file.StandardCopyOption;
-import java.util.ArrayList;
-import java.util.List;
 
 import javax.xml.parsers.DocumentBuilderFactory;
 import javax.xml.transform.OutputKeys;
@@ -38,18 +34,12 @@ public final class BuiltinControllerUiMod {
     private static final String MOD_DIR = "RimDroidControllerUI";
     private static final String PACKAGE_ID = "rimdroid.controllerui";
 
-    private static final String[][] OFFICIAL_CONTENT = {
-        { "Core",     "ludeon.rimworld" },
-        { "Royalty",  "ludeon.rimworld.royalty" },
-        { "Ideology", "ludeon.rimworld.ideology" },
-        { "Biotech",  "ludeon.rimworld.biotech" },
-        { "Anomaly",  "ludeon.rimworld.anomaly" },
-        { "Odyssey",  "ludeon.rimworld.odyssey" },
-    };
-
     /** Idempotent and safe to call from install, startup reconcile, and immediately before launch. */
     public static synchronized void install(Context context, File instanceDir) {
         if (context == null || instanceDir == null || !instanceDir.isDirectory()) return;
+        // Not for RimWorld 1.7 (its own engine on .NET): the mod carries a .NET Framework build of
+        // Lib.Harmony for 1.6, which there only collides with the Harmony mod's 1.7 build.
+        if (new File(instanceDir, "RimWorld.runtimeconfig.json").isFile()) return;
         try {
             File modDir = new File(instanceDir, "Mods/" + MOD_DIR);
             copyAssetTree(context.getAssets(), ASSET_ROOT, modDir);
@@ -123,21 +113,8 @@ public final class BuiltinControllerUiMod {
             File parent = config.getParentFile();
             if (parent != null && !parent.isDirectory() && !parent.mkdirs())
                 throw new java.io.IOException("Cannot create " + parent);
-            document = newDocumentBuilderFactory().newDocumentBuilder().newDocument();
-            Element root = document.createElement("ModsConfigData");
-            document.appendChild(root);
-            appendText(document, root, "version", readVersion(instanceDir));
-            activeMods = document.createElement("activeMods");
-            root.appendChild(activeMods);
-
-            List<String> official = installedOfficialContent(instanceDir);
-            for (String packageId : official) appendText(document, activeMods, "li", packageId);
-
-            Element knownExpansions = document.createElement("knownExpansions");
-            root.appendChild(knownExpansions);
-            for (String packageId : official)
-                if (!"ludeon.rimworld".equals(packageId))
-                    appendText(document, knownExpansions, "li", packageId);
+            document = com.rimdroid.mods.ModList.newConfig(instanceDir);
+            activeMods = (Element) document.getElementsByTagName("activeMods").item(0);
         }
 
         if (enabled) appendText(document, activeMods, "li", PACKAGE_ID);
@@ -183,28 +160,6 @@ public final class BuiltinControllerUiMod {
         Element child = document.createElement(name);
         child.appendChild(document.createTextNode(value));
         parent.appendChild(child);
-    }
-
-    private static List<String> installedOfficialContent(File instanceDir) {
-        List<String> result = new ArrayList<>();
-        File data = new File(instanceDir, "Data");
-        for (String[] entry : OFFICIAL_CONTENT)
-            if (new File(data, entry[0] + "/About/About.xml").isFile()) result.add(entry[1]);
-        // A valid instance always has Core; keep the config launchable even if its folder uses
-        // unusual capitalization that File.isFile() did not match on a case-sensitive filesystem.
-        if (!result.contains("ludeon.rimworld")) result.add(0, "ludeon.rimworld");
-        return result;
-    }
-
-    private static String readVersion(File instanceDir) {
-        File version = new File(instanceDir, "Version.txt");
-        if (!version.isFile()) return "unknown";
-        try (FileInputStream in = new FileInputStream(version)) {
-            byte[] data = new byte[(int) Math.min(256, version.length())];
-            int count = in.read(data);
-            if (count > 0) return new String(data, 0, count, StandardCharsets.UTF_8).trim();
-        } catch (Throwable ignored) {}
-        return "unknown";
     }
 
     private static void writeDocumentAtomically(Document document, File output) throws Exception {

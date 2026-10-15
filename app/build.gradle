@@ -2,6 +2,13 @@ plugins {
     id 'com.android.application'
 }
 
+// RimWorld 1.7 on .NET (experimental): see fetchDotnetRuntime.
+def dotnetEngineEnabled = (project.findProperty("dotnetEngine") ?: {
+    def f = rootProject.file("local.properties")
+    if (!f.isFile()) return null
+    def p = new Properties(); f.withInputStream { p.load(it) }; return p.getProperty("dotnetEngine")
+}()) == "true"
+
 android {
     namespace 'com.rimdroid'
     compileSdk 36
@@ -70,13 +77,69 @@ android {
     }
 
     // Harmony rides in the built-in mod (see fetchHarmony below), fetched at build time: no
-    // binary in the repository.
+    // binary in the repository. With dotnetEngine=true the .NET runtime for RimWorld 1.7 rides along
+    // the same way (fetchDotnetRuntime).
     sourceSets {
         main {
             assets.srcDirs += "$buildDir/harmony/assets"
+            if (dotnetEngineEnabled) {
+                assets.srcDirs += "$buildDir/dotnet/assets"
+                assets.srcDirs += "src/dotnet/assets"   // RimDroidClrHooks.dll (tools/rimworld17/build_clrhooks.sh)
+                jniLibs.srcDirs += "$buildDir/dotnet/jniLibs"
+            }
         }
     }
 }
+
+// RimWorld 1.7 on .NET (experimental): the official .NET 10 runtime for Android (CoreCLR,
+// Microsoft.NETCore.App.Runtime.android-arm64, MIT) from NuGet, pinned by hash. Only with
+// dotnetEngine=true (Gradle property, ORG_GRADLE_PROJECT_dotnetEngine on CI, or local.properties);
+// ordinary builds stay as they were. Native runtime libraries → jniLibs, framework assemblies → assets.
+def dotnetVersion = "10.0.12"
+def dotnetSha256 = "7f67905e5e5324e0c2b03920b62a3b09c036737ba84f9e7cb61f7e058d285ad3"
+def dotnetDir = new File(buildDir, "dotnet")
+tasks.register("fetchDotnetRuntime") {
+    def nupkg = new File(dotnetDir, "microsoft.netcore.app.runtime.android-arm64.${dotnetVersion}.nupkg")
+    def stamp = new File(dotnetDir, "extracted-${dotnetVersion}")
+    outputs.file(stamp)
+    onlyIf { dotnetEngineEnabled }
+    doLast {
+        if (!nupkg.isFile()) {
+            nupkg.parentFile.mkdirs()
+            new URL("https://api.nuget.org/v3-flatcontainer/microsoft.netcore.app.runtime.android-arm64/${dotnetVersion}/microsoft.netcore.app.runtime.android-arm64.${dotnetVersion}.nupkg")
+                    .withInputStream { i -> nupkg.withOutputStream { o -> o << i } }
+        }
+        def md = java.security.MessageDigest.getInstance("SHA-256")
+        nupkg.withInputStream { i -> byte[] b = new byte[1 << 16]; int n; while ((n = i.read(b)) > 0) md.update(b, 0, n) }
+        def digest = md.digest().collect { String.format("%02x", it) }.join()
+        if (digest != dotnetSha256) {
+            nupkg.delete()
+            throw new GradleException(".NET runtime ${dotnetVersion}: unexpected package hash ${digest}")
+        }
+        def libs = new File(dotnetDir, "jniLibs/arm64-v8a"), fw = new File(dotnetDir, "assets/dotnet/framework")
+        project.delete(libs, fw)
+        libs.mkdirs(); fw.mkdirs(); new File(dotnetDir, "libs").mkdirs()
+        def zip = new java.util.zip.ZipFile(nupkg)
+        try {
+            zip.entries().each { e ->
+                def name = e.name.substring(e.name.lastIndexOf('/') + 1)
+                File target = null
+                if (e.name.startsWith("runtimes/android-arm64/native/") && name.endsWith(".so")
+                        && !name.startsWith("libmscordaccore") && !name.startsWith("libmscordbi"))
+                    target = new File(libs, name)
+                else if (e.name.startsWith("runtimes/android-arm64/lib/net10.0/") && name.endsWith(".dll"))
+                    target = new File(fw, name)
+                else if (e.name.startsWith("runtimes/android-arm64/native/") && name.endsWith(".jar"))
+                    target = new File(dotnetDir, "libs/" + name)   // Java side of .NET's Android crypto
+                if (target != null) zip.getInputStream(e).withStream { i -> target.withOutputStream { o -> o << i } }
+            }
+        } finally {
+            zip.close()
+        }
+        stamp.text = dotnetVersion
+    }
+}
+preBuild.dependsOn fetchDotnetRuntime
 
 // Lib.Harmony (MIT, Andreas Pardeike) from NuGet, pinned by hash: 0Harmony.dll goes into the
 // built-in mod's Assemblies, so every player of the native engine has Harmony for RimDroid's
@@ -118,6 +181,11 @@ dependencies {
     // (nativeEngine=true) and unity/prepared exists, see settings.gradle.kts.
     if (rootProject.findProject(':unity') != null) {
         implementation project(':unity')
+    }
+    // RimWorld 1.7 on .NET: the Java classes .NET's Android crypto library looks up from JNI_OnLoad
+    // (net.dot.android.crypto.*), from the same runtime pack (fetchDotnetRuntime).
+    if (dotnetEngineEnabled) {
+        implementation files("$buildDir/dotnet/libs/libSystem.Security.Cryptography.Native.Android.jar")
     }
 
     testImplementation 'junit:junit:4.13.2'

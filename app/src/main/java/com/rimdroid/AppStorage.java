@@ -72,14 +72,13 @@ public class AppStorage {
     /** Short, always-fits default instance name (stays well under the sun_path byte budget). */
     public static final String DEFAULT_INSTANCE_NAME = "RimWorld";
 
-    /** "RimWorld", or "RimWorld-2"/"-3"/... — the first name with no existing instance directory.
-     *  Shared by every screen that creates an instance (ZIP install and Steam download) so they
-     *  pre-fill the same default. */
+    /** "RimWorld", or "RimWorld2"/"RimWorld3"/... — the first name with no existing instance
+     *  directory. Short on purpose: the name is part of every game path (see NewInstanceFragment). */
     public static String freeDefaultInstanceName() {
         AppStorage st = requireSingleton();
         if (!st.getInstanceDir(DEFAULT_INSTANCE_NAME).exists()) return DEFAULT_INSTANCE_NAME;
         for (int i = 2; i < 1000; i++) {
-            String n = DEFAULT_INSTANCE_NAME + "-" + i;
+            String n = DEFAULT_INSTANCE_NAME + i;
             if (!st.getInstanceDir(n).exists()) return n;
         }
         return DEFAULT_INSTANCE_NAME;   // 1000 instances named RimWorld* — practically unreachable

@@ -88,6 +88,73 @@ public final class ModList {
         return new File(instanceDir, "unity3d/Ludeon Studios/RimWorld by Ludeon Studios/Config/ModsConfig.xml");
     }
 
+    /** Core and the DLC in the order the game lists them: {folder under Data/, packageId}. */
+    private static final String[][] OFFICIAL_CONTENT = {
+        { "Core",     CORE },
+        { "Royalty",  "ludeon.rimworld.royalty" },
+        { "Ideology", "ludeon.rimworld.ideology" },
+        { "Biotech",  "ludeon.rimworld.biotech" },
+        { "Anomaly",  "ludeon.rimworld.anomaly" },
+        { "Odyssey",  "ludeon.rimworld.odyssey" },
+    };
+
+    /**
+     * ModsConfig.xml as the game writes it on its first start: Core and every installed DLC active,
+     * the DLC known. Without one there is nothing to switch mods on in, so a new instance needed an
+     * empty first launch before its mods could be enabled.
+     */
+    public static Document newConfig(File instanceDir) throws Exception {
+        List<String> official = new ArrayList<>();
+        File data = new File(instanceDir, "Data");
+        for (String[] entry : OFFICIAL_CONTENT)
+            if (new File(data, entry[0] + "/About/About.xml").isFile()) official.add(entry[1]);
+        // A valid instance always has Core; keep the config launchable even if its folder uses
+        // unusual capitalization that File.isFile() did not match on a case-sensitive filesystem.
+        if (!official.contains(CORE)) official.add(0, CORE);
+
+        Document doc = factory().newDocumentBuilder().newDocument();
+        Element root = doc.createElement("ModsConfigData");
+        doc.appendChild(root);
+        appendText(doc, root, "version", versionLine(instanceDir));
+        Element active = doc.createElement("activeMods");
+        root.appendChild(active);
+        for (String id : official) appendText(doc, active, "li", id);
+        Element known = doc.createElement("knownExpansions");
+        root.appendChild(known);
+        for (String id : official) if (!CORE.equals(id)) appendText(doc, known, "li", id);
+        return doc;
+    }
+
+    /** Writes {@link #newConfig} when the instance has no ModsConfig.xml yet; false if it could not. */
+    public static boolean ensureConfig(File instanceDir) {
+        File config = configFile(instanceDir);
+        if (config.isFile()) return true;
+        try {
+            File parent = config.getParentFile();
+            if (parent != null && !parent.isDirectory() && !parent.mkdirs())
+                throw new java.io.IOException("cannot create " + parent);
+            write(newConfig(instanceDir), config);
+            Log.i(TAG, "Created ModsConfig.xml for " + instanceDir.getName());
+            return true;
+        } catch (Exception e) {
+            Log.w(TAG, "Cannot create ModsConfig.xml: " + e);
+            return false;
+        }
+    }
+
+    /** Version.txt's first line ("1.7.4979 rev109"), "unknown" when unreadable. */
+    private static String versionLine(File instanceDir) {
+        try {
+            String text = new String(Files.readAllBytes(new File(instanceDir, "Version.txt").toPath()),
+                    java.nio.charset.StandardCharsets.UTF_8).trim();
+            int nl = text.indexOf('\n');
+            String line = (nl < 0 ? text : text.substring(0, nl)).trim();
+            return line.isEmpty() ? "unknown" : line;
+        } catch (Exception e) {
+            return "unknown";
+        }
+    }
+
     /** Every installed mod, official content first, then by name. */
     public static List<Mod> installed(File instanceDir) {
         List<Mod> mods = new ArrayList<>();
@@ -287,6 +354,12 @@ public final class ModList {
     private static String text(Element parent, String name) {
         Element e = child(parent, name);
         return e == null ? "" : e.getTextContent().trim();
+    }
+
+    private static void appendText(Document doc, Element parent, String name, String value) {
+        Element e = doc.createElement(name);
+        e.appendChild(doc.createTextNode(value));
+        parent.appendChild(e);
     }
 
     private static void write(Document doc, File output) throws Exception {

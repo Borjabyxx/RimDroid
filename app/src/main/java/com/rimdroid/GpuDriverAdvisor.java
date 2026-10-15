@@ -45,7 +45,20 @@ public final class GpuDriverAdvisor {
             s.setVulkanDriverSo(so);
             applied = true;
         }
-        return new Result(gpu.displayName(), label, so, applied, applied && !runsNative(instanceName));
+        return new Result(gpu.displayName(), label, so, applied,
+                applied && !runsNative(instanceName) && !runsDotnet(instanceName));
+    }
+
+    /** The instance holds RimWorld 1.7, which starts on the .NET engine and the phone's own Vulkan. */
+    private static boolean runsDotnet(String instanceName) {
+        try {
+            com.rimdroid.game.GameInstanceManager mgr = com.rimdroid.game.GameInstanceManager.requireSingleton();
+            mgr.reload();
+            com.rimdroid.game.GameInstance gi = mgr.getByName(instanceName);
+            return gi != null && com.rimdroid.game.DotnetEngine.isWaylith(gi);
+        } catch (RuntimeException e) {
+            return false;
+        }
     }
 
     /** The instance will start on the native engine (1.6, module present, engine chosen). */

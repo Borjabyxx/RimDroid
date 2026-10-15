@@ -178,7 +178,7 @@ public class LauncherPreferences {
     // --- Render scale (UI size / GPU load) ---
     // RimWorld scales its UI with resolution: rendering at a LOWER fraction of the
     // native surface makes the on-screen UI BIGGER and is lighter on the GPU.
-    // RimWorld's UI has a ~1280x720 minimum — below that the layout overflows (the
+    // RimWorld's UI has a ~1280x768 minimum — below that the layout overflows (the
     // colony START button falls off the bottom). The minimum USABLE scale therefore
     // depends on the screen: a 1080p panel floors at ~67% (720/1080), a 1440p panel
     // can go down to ~50% (720/1440). A fixed percentage floor would force a high-res
@@ -200,21 +200,24 @@ public class LauncherPreferences {
     public float getRenderScale() { return getRenderScalePercent() / 100f; }
 
     /**
-     * Lowest render-scale percent that still yields a &gt;=1280x720 internal resolution
+     * Lowest render-scale percent that still yields a &gt;=1280x768 internal resolution
      * for the given physical surface, so high-res phones can scale further down than
-     * low-res ones. Pass landscape dimensions (the larger value as width). Clamped to
+     * low-res ones. 768 lines, not 720: RimWorld's windows are laid out for 768 (its own
+     * minimum, 1024x768); the Needs tab of a colonist with 8+ needs is 520 lines tall on top of
+     * 230 lines of bottom bar, inspect pane and tab row, and lost its top 30 at 720 (player
+     * screenshot, 2026-10-13). Pass landscape dimensions (the larger value as width). Clamped to
      * [RENDER_SCALE_ABS_MIN, 100].
      */
     public static int minRenderScalePercent(int surfaceW, int surfaceH) {
-        if (surfaceW <= 0 || surfaceH <= 0) return 67;   // safe fallback (1080p floor)
-        double need = Math.max(1280.0 / surfaceW, 720.0 / surfaceH);
+        if (surfaceW <= 0 || surfaceH <= 0) return 72;   // safe fallback (1080p floor)
+        double need = Math.max(1280.0 / surfaceW, 768.0 / surfaceH);
         int pct = (int) Math.ceil(need * 100.0);
         return Math.max(RENDER_SCALE_ABS_MIN, Math.min(100, pct));
     }
 
     /**
      * The render scale actually applied for a given physical surface: the stored value
-     * raised to the per-device floor (so RimWorld's UI never drops below 1280x720).
+     * raised to the per-device floor (so RimWorld's UI never drops below 1280x768).
      * Used by both the game and the controls editor so the two always agree.
      */
     public float getEffectiveRenderScale(int surfaceW, int surfaceH) {

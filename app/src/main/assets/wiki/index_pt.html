@@ -80,8 +80,8 @@
         <li>Você precisa ter o <b>RimWorld</b> na <b>Steam</b> ou na <b>GOG</b>. O RimDroid roda a
             versão <b>Linux</b> do jogo, <b>RimWorld 1.6</b>; a 1.5 continua rodando como está (antiga), mas novidades e correções são só para a 1.6.</li>
         <li>Coloque o jogo no app. Com a Steam, abra o menu lateral e toque em
-            <b>Downloads da Steam</b>: o jogo é baixado direto para uma instância pronta. Para a GOG
-            e as outras formas, veja <a href="#get-game">Como obter o jogo</a>.</li>
+            <b>Downloads da Steam</b>: o jogo é baixado como .zip e <b>Criar uma instância</b> faz
+            com ele uma instância pronta. Para a GOG e as outras formas, veja <a href="#get-game">Como obter o jogo</a>.</li>
         <li>Uma <b>instância</b> é uma cópia instalada do jogo. Cada uma tem o seu próprio cartão na
             tela principal e as suas próprias configurações no <b>ícone de engrenagem</b>. Você pode
             ter várias, por exemplo 1.5 e 1.6 lado a lado.</li>
@@ -112,19 +112,24 @@
         <h3>1. Pela Steam, dentro do app</h3>
         <ol>
             <li>Abra o menu lateral e toque em <b>Downloads da Steam</b>, aba <b>Jogo</b>.</li>
-            <li>Escolha <b>RimWorld 1.5</b> ou <b>RimWorld 1.6</b> e digite um nome para a nova
-                instância.</li>
+            <li>Escolha <b>RimWorld 1.6</b> ou, se o app oferecer, <b>RimWorld 1.7</b>. Enquanto a
+                Steam não tiver uma 1.7 estável, o app pega a build mais recente da branch beta
+                unstable.</li>
             <li>Entre com a sua conta Steam. Seus dados vão só para a Steam e não são guardados.
                 Aprove o login no app Steam Mobile ou digite o código do Steam Guard.</li>
-            <li>Toque em <b>Baixar</b>. O jogo vai direto para uma nova instância: sem PC e sem
-                arquivos compactados.</li>
-            <li>Se o download parar, comece de novo com o <b>mesmo nome de instância</b> e ele
-                continua de onde parou.</li>
+            <li>Toque em <b>Baixar</b>. O jogo é salvo como .zip em <b>Download/RimDroid</b>, com o
+                número da sua build na Steam (precisa de <b>Acesso a todos os arquivos</b>). Se essa
+                build já estiver lá, ela não é baixada de novo.</li>
+            <li>Toque em <b>Criar uma instância</b>: a nova instância é criada a partir desse zip.
+                Com o mesmo zip dá para criar outras instâncias depois, como com qualquer zip do
+                jogo.</li>
+            <li>Se o download parar, comece de novo com a mesma versão e ele continua de onde
+                parou.</li>
         </ol>
         <p>
-            Para baixar uma versão mais antiga em vez da recomendada, digite o <b>ID do
-            manifesto</b> dela no campo avançado (os IDs estão no SteamDB). Caso contrário, deixe
-            vazio.
+            Para baixar outra build em vez da padrão, digite o <b>ID do manifesto</b> dela no
+            campo avançado (os IDs estão no SteamDB). Para uma build da branch unstable, marque
+            também <b>Manifesto da branch unstable (beta)</b>. Caso contrário, deixe vazio.
         </p>
     </section>
 
@@ -296,12 +301,15 @@
     <ul>
         <li><b>Resolução de renderização</b>: uma resolução menor dá mais FPS em GPUs fracas e uma
             interface maior; tela cheia na resolução do próprio celular é a mais nítida.
-            <b>Bordas pretas 1280×720</b> é a mais rápida.</li>
+            <b>Bordas pretas 1366×768</b> é a mais rápida.</li>
         <li><b>Compressão de texturas</b> reduz as texturas para economizar memória e ganhar FPS, e
             é necessária para carregar vários DLCs em celulares mais fracos. Afeta principalmente
             plantas e recursos; colonos e animais nunca são alterados. <b>Baixa</b> é um bom
             equilíbrio; <b>Muito baixa</b> é um pouco mais rápida, mas as plantas ficam
             borradas.</li>
+        <li><b>Tamanho do texto</b> (só RimWorld 1.7): 100 / 120 / 130 / 140 %, 120 por padrão.
+            Só as letras crescem; as janelas e os botões mantêm o tamanho. Com 130–140 % alguns
+            rótulos em campos estreitos podem não caber.</li>
         <li><b>Na tela durante o jogo</b>: <b>FPS</b> mostra a taxa de quadros no canto superior esquerdo;
             <b>Info completa</b> mostra uma barra no topo com a carga de GPU e CPU, memória, consumo,
             temperatura e um gráfico de FPS: ajuda a ver o que deixa o jogo lento. Vale a partir da
@@ -438,7 +446,7 @@
         <li><b>Compressão de texturas</b> (Não / Baixa / Muito baixa) também funciona aqui, mas reduz só
             as texturas grandes; ícones e colonos continuam nítidos. Baixa é o padrão de uma instância
             nova: num celular de 8 GB com muitos mods o jogo pode não carregar sem ela.</li>
-        <li>Os presets de resolução funcionam como no box64: <b>Margens pretas 1280×720</b> desenha o
+        <li>Os presets de resolução funcionam como no box64: <b>Bordas pretas 1366×768</b> desenha o
             jogo numa caixa 16:9 com margens pretas.</li>
         <li>A roda do mouse aproxima o mapa e rola listas, como no PC (as listas precisam do mod Harmony).
             A pinça e os botões Zoom in / Zoom out fazem o mesmo.</li>

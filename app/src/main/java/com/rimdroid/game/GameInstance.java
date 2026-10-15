@@ -183,7 +183,7 @@ public class GameInstance {
     }
 
     public boolean isInstalled() {
-        return new File(getGamePath(), C.files.RIMWORLD_BIN).exists();
+        return new File(getGamePath(), C.files.RIMWORLD_BIN).exists() || DotnetEngine.isWaylith(this);
     }
 
     /**
@@ -197,6 +197,12 @@ public class GameInstance {
      */
     public java.util.List<String> missingCoreFiles() {
         File root = new File(getGamePath());
+        if (DotnetEngine.isWaylith(this)) {   // RimWorld 1.7: no Unity, no x86 launcher
+            java.util.List<String> missing = new ArrayList<>();
+            for (String rel : new String[] { "RimWorld.dll", "Assembly-CSharp.dll", "Assets.zip", "Data/Core/About/About.xml" })
+                if (!new File(root, rel).isFile()) missing.add(rel);
+            return missing;
+        }
         String[] required = {
             C.files.RIMWORLD_BIN,
             "RimWorldLinux_Data/Managed/Assembly-CSharp.dll",

@@ -87,6 +87,8 @@ En la nube: %2$s
     <string name="fps_cap_hint">Limita los FPS para suavizar los saltos y liberar CPU para el juego, lo que puede subir la velocidad del juego (TPS) en dispositivos más débiles. Prueba 60 o 30 si el contador salta mucho.</string>
     <string name="texq_label">Compresión de texturas</string>
     <string name="texq_hint">Reduce las texturas para ahorrar memoria y ganar FPS; hace falta para cargar varios DLC en teléfonos más débiles. Afecta sobre todo a la vegetación y los recursos; los colonos y los animales nunca se tocan. Baja es un buen equilibrio; Muy baja es algo más rápida, pero las plantas se ven borrosas.</string>
+    <string name="text_scale_label">Tamaño del texto</string>
+    <string name="text_scale_hint">Agranda el texto del juego; las ventanas y los botones mantienen su tamaño. Con 130–140 % algunas etiquetas en campos estrechos pueden no caber. Solo RimWorld 1.7.</string>
     <string name="texq_no">No</string>
     <string name="texq_low">Baja</string>
     <string name="texq_ultra">Muy baja</string>
@@ -95,7 +97,7 @@ En la nube: %2$s
     <string name="fps_cap_off">Sin límite</string>
     <string name="render_res_label">Resolución de renderizado</string>
     <string name="render_res_relative">Pantalla completa</string>
-    <string name="render_res_fixed_169">Bordes negros 1280×720 — la más rápida</string>
+    <string name="render_res_fixed_169">Bordes negros 1366×768 — la más rápida</string>
     <string name="render_res_fullscreen">pantalla completa</string>
     <string name="render_res_black_margins">bordes negros</string>
     <string name="render_res_hint">Menor = más FPS en GPU débiles y una interfaz más grande. Nativa = más nítida.</string>
@@ -227,11 +229,12 @@ En la nube: %2$s
 
     <!-- Download screen -->
     <string name="download_game_title">Descargar RimWorld desde Steam</string>
-    <string name="download_version_note">Descarga la versión de Linux directamente en una instancia nueva: sin Termux y sin PC.</string>
-    <string name="download_instance_hint">Nombre de la instancia (p. ej. RimWorld 1.5)</string>
+    <string name="download_version_note">Descarga la versión de Linux como .zip en Download/RimDroid y luego crea una instancia con él: sin Termux y sin PC. Necesita «Acceso a todos los archivos».</string>
     <string name="download_version_label">Versión del juego</string>
-    <string name="download_version_15">RimWorld 1.5 (antigua)</string>
     <string name="download_version_16">RimWorld 1.6</string>
+    <string name="download_version_17">RimWorld 1.7</string>
+    <string name="download_version_17_note">Cuando salió esta versión (15/10/2026) aún no había una RimWorld 1.7 estable pública, así que descargamos la última compilación unstable.</string>
+    <string name="download_unstable">Manifiesto de la rama unstable (beta)</string>
     <string name="download_user_hint">Usuario de Steam</string>
     <string name="download_pass_hint">Contraseña de Steam</string>
     <string name="download_login_note">Tus datos se envían a Steam (igual que hace DepotDownloader) y NO se guardan. Aprueba el inicio de sesión en tu app Steam Mobile, o escribe el código de Steam Guard cuando se te pida.</string>
@@ -269,7 +272,7 @@ En la nube: %2$s
 
     <string name="nav_label_donate">Donar</string>
     <string name="zomdroid_dialog_message">Zomdroid ejecuta Project Zomboid en Android, igual que este launcher ejecuta RimWorld. Mismo autor, mismo enfoque.\n\nhttps://github.com/udarmolota/Zomdroid/releases</string>
-    <string name="download_manifest_hint">Avanzado: ID de manifiesto — vacío = la última compilación de la versión elegida</string>
+    <string name="download_manifest_hint">Avanzado: ID de manifiesto — vacío = la compilación predeterminada de la versión elegida</string>
     <string name="download_start">Descargar</string>
     <string name="download_tab_game">Juego</string>
     <string name="download_tab_dlc">DLC</string>

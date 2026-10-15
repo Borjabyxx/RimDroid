@@ -210,103 +210,10 @@ public class SettingsFragment extends Fragment {
         //  gone now — Steam auth moved to the Download screen, and audio is always-on raw Vorbis.)
 
         // Anon-mod-download spike — REMOVED (the real anonymous downloader shipped). Button hidden.
-        // Steam downloader SPIKE button (full game download) HIDDEN — superseded by the real
-        // "Download game (Steam)" screen. Click logic kept but unreachable.
+        // The old Steam downloader spike button (full game download, 1.5 only) stays hidden: the
+        // "Download game (Steam)" screen replaced it.
         btnSteamDl.setVisibility(View.GONE);
         tvSteamDlStatus.setVisibility(View.GONE);
-        btnSteamDl.setOnClickListener(v -> {
-            final android.content.Context appCtx = requireContext().getApplicationContext();
-            final android.app.Activity act = requireActivity();
-            final android.os.Handler mainH = new android.os.Handler(android.os.Looper.getMainLooper());
-            final float dp = getResources().getDisplayMetrics().density;
-
-            final boolean manifestOnly = false;  // manifest-only PASSED on device — now do the real download
-
-            android.widget.LinearLayout box = new android.widget.LinearLayout(act);
-            box.setOrientation(android.widget.LinearLayout.VERTICAL);
-            int pad = (int) (16 * dp);
-            box.setPadding(pad, pad, pad, 0);
-            // Instance name → the game downloads into instances/<name> and becomes launchable.
-            final android.widget.EditText etInstance = new android.widget.EditText(act);
-            etInstance.setHint("Instance name (e.g. RimWorld 1.5)");
-            etInstance.setInputType(android.text.InputType.TYPE_CLASS_TEXT
-                    | android.text.InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS);
-            final android.widget.EditText etUser = new android.widget.EditText(act);
-            etUser.setHint("Steam username");
-            etUser.setInputType(android.text.InputType.TYPE_CLASS_TEXT
-                    | android.text.InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS);
-            final android.widget.EditText etPass = new android.widget.EditText(act);
-            etPass.setHint("Steam password");
-            etPass.setInputType(android.text.InputType.TYPE_CLASS_TEXT
-                    | android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD);
-            // Manifest = game version. RimDroid currently supports RimWorld 1.5 only (Steam "public"
-            // is already 1.6). Blank → recommended 1.5 build; a number → pin a specific build.
-            final android.widget.EditText etManifest = new android.widget.EditText(act);
-            etManifest.setHint("Manifest ID — blank = recommended 1.5");
-            etManifest.setInputType(android.text.InputType.TYPE_CLASS_NUMBER);
-            box.addView(etInstance);
-            box.addView(etUser);
-            box.addView(etPass);
-            box.addView(etManifest);
-
-            new com.google.android.material.dialog.MaterialAlertDialogBuilder(act)
-                    .setTitle("Steam download spike")
-                    .setMessage((manifestOnly ? "MANIFEST-ONLY test. " : "")
-                            + "RimDroid currently works with RimWorld 1.5 (Steam 'latest' is already 1.6). "
-                            + "Logs in (approve in Steam Mobile / enter code), then downloads the RimWorld 1.5 "
-                            + "Linux build into the named instance.")
-                    .setView(box)
-                    .setNegativeButton("Cancel", null)
-                    .setPositiveButton("Start", (d, w) -> {
-                        String u = etUser.getText().toString().trim();
-                        String p = etPass.getText().toString();
-                        String name = etInstance.getText().toString().trim();
-                        if (name.isEmpty()) {
-                            android.widget.Toast.makeText(appCtx, "Enter an instance name", android.widget.Toast.LENGTH_SHORT).show();
-                            return;
-                        }
-                        long manifestId = 0L;   // 0 = latest
-                        try {
-                            String mt = etManifest.getText().toString().trim();
-                            if (!mt.isEmpty()) manifestId = Long.parseLong(mt);
-                        } catch (NumberFormatException ignored) { /* blank/invalid → latest */ }
-                        final long manifestIdF = manifestId;
-                        mainH.post(() -> {
-                            tvSteamDlStatus.setVisibility(View.VISIBLE);
-                            tvSteamDlStatus.setText("Steam: connecting…");
-                        });
-                        // Advanced/debug downloader: no version toggle here — defaults to 1.5 (the
-                        // main DownloadFragment carries the 1.5/1.6 selector). A manifest id override
-                        // still pins any specific build.
-                        new Thread(new com.rimdroid.SteamDownloadSpike(u, p, name, manifestOnly, manifestIdF,
-                                com.rimdroid.SteamDownloadSpike.Version.V1_5,
-                                new com.rimdroid.SteamDownloadSpike.Listener() {
-                            @Override public java.util.concurrent.CompletableFuture<String> requestSteamGuardCode(boolean prevWrong, String email) {
-                                final java.util.concurrent.CompletableFuture<String> fut = new java.util.concurrent.CompletableFuture<>();
-                                mainH.post(() -> {
-                                    final android.widget.EditText etCode = new android.widget.EditText(act);
-                                    etCode.setHint(email != null ? ("Code emailed to " + email) : "Steam Guard code");
-                                    etCode.setInputType(android.text.InputType.TYPE_CLASS_TEXT
-                                            | android.text.InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS);
-                                    new com.google.android.material.dialog.MaterialAlertDialogBuilder(act)
-                                            .setTitle(prevWrong ? "Code incorrect — try again" : "Enter Steam Guard code")
-                                            .setView(etCode)
-                                            .setCancelable(false)
-                                            .setPositiveButton("OK", (dd, ww) -> fut.complete(etCode.getText().toString().trim()))
-                                            .show();
-                                });
-                                return fut;
-                            }
-                            @Override public void onProgress(String message) {
-                                mainH.post(() -> tvSteamDlStatus.setText(message));
-                            }
-                            @Override public void onDone(String message) {
-                                mainH.post(() -> tvSteamDlStatus.setText("Done: " + message));
-                            }
-                        }), "SteamDownloadSpike").start();
-                    })
-                    .show();
-        });
 
         // (Steam Cloud saves moved out of debug into its own screen: drawer -> "Steam Cloud saves"
         //  = CloudSavesFragment. The old debug spike button here was removed.)
@@ -400,7 +307,7 @@ public class SettingsFragment extends Fragment {
 
         // --- Render resolution (Video card): vertical radios, just the resolution text. Per-device
         // presets from a ~720p floor up to native. Lower = more FPS on weak GPUs + a bigger (blurrier)
-        // UI; native is sharpest. The floor keeps render >= ~1280x720 (RimWorld UI minimum), per-device.
+        // UI; native is sharpest. The floor keeps render >= ~1280x768 (RimWorld UI minimum), per-device.
         // Applied at the next launch.
         android.widget.RadioGroup rgRes = view.findViewById(R.id.rg_render_res);
         android.graphics.Rect bounds =
@@ -419,7 +326,7 @@ public class SettingsFragment extends Fragment {
         int nearestPct = pcts.get(0), nearestD = Integer.MAX_VALUE;   // relative preset closest to the stored %
         for (int p : pcts) { int d = Math.abs(p - curPct); if (d < nearestD) { nearestD = d; nearestPct = p; } }
 
-        final int FIXED_TAG = -1;   // sentinel tag = the fixed 1280x720 letterboxed radio (not a percent)
+        final int FIXED_TAG = -1;   // sentinel tag = the fixed 1366x768 letterboxed radio (not a percent)
         for (int i = pcts.size() - 1; i >= 0; i--) {   // native first, down to the floor
             int p = pcts.get(i);
             int W = Math.round(sLong * p / 100f), H = Math.round(sShort * p / 100f);
@@ -432,7 +339,7 @@ public class SettingsFragment extends Fragment {
         }
         android.widget.RadioButton rbFixed = new android.widget.RadioButton(requireContext());
         rbFixed.setId(View.generateViewId());
-        rbFixed.setText("1280×720 (" + getString(R.string.render_res_black_margins) + ")");
+        rbFixed.setText("1366×768 (" + getString(R.string.render_res_black_margins) + ")");
         rbFixed.setTag(FIXED_TAG);
         rgRes.addView(rbFixed);
         if (curFixed) rbFixed.setChecked(true);
@@ -462,6 +369,31 @@ public class SettingsFragment extends Fragment {
                      : (checkedId == R.id.rb_texq_low)   ? com.rimdroid.InstanceSettings.TEX_LOW
                      : com.rimdroid.InstanceSettings.TEX_NONE;
             inst.setTexTier(tier);
+        });
+
+        // Text size (RimWorld 1.7 only): 100 / 120 / 130 / 140 %. Takes effect on the next launch.
+        boolean waylith = engineInstance != null && com.rimdroid.game.DotnetEngine.isWaylith(engineInstance);
+        view.findViewById(R.id.card_text_scale).setVisibility(waylith ? View.VISIBLE : View.GONE);
+        Spinner spText = view.findViewById(R.id.sp_text_scale);
+        final int[] textScales = com.rimdroid.InstanceSettings.TEXT_SCALES;
+        String[] textLabels = new String[textScales.length];
+        int textSel = 0;
+        for (int i = 0; i < textScales.length; i++) {
+            textLabels[i] = textScales[i] + " %";
+            if (textScales[i] == inst.getTextScale()) textSel = i;
+        }
+        ArrayAdapter<String> textAdapter = new ArrayAdapter<>(requireContext(), android.R.layout.simple_spinner_item, textLabels);
+        textAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+        spText.setAdapter(textAdapter);
+        spText.setSelection(textSel);
+        spText.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
+            @Override
+            public void onItemSelected(AdapterView<?> parent, View v, int position, long id) {
+                inst.setTextScale(textScales[position]);
+            }
+
+            @Override
+            public void onNothingSelected(AdapterView<?> parent) {}
         });
 
         // FPS cap: three radio buttons — 30 / 60 / No limit (0 = off). Takes effect on next launch.

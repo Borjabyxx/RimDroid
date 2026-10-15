@@ -112,6 +112,8 @@ public class InstanceSettings {
     // suits near-square foldables, where 16:9 would waste a third of the screen. Fewer pixels than
     // any device-relative preset, and the margins give the on-screen buttons somewhere to sit that
     // isn't on top of the map. Overrides the render-scale setting while on. Default OFF. ---
+    // The "720" in the names is historical: the black-margin presets render 768 lines since
+    // 2026-10-13 (1366x768 and 1024x768, RimWorld's own minimum height). Stored values unchanged.
     public static final int FIXED_NONE = 0, FIXED_720_16_9 = 1, FIXED_720_4_3 = 2;
 
     public int getFixedResMode() {
@@ -125,6 +127,16 @@ public class InstanceSettings {
     // --- Frame-rate cap (0 = uncapped, else 30/60…). RimWorld is CPU-bound under emulation, so
     // capping the render rate evens out the FPS swings AND frees CPU for the simulation → steadier,
     // often higher TPS. Default 0 (uncapped). ---
+    // RimWorld 1.7: the phone-sized UI scale is written into the game's Prefs.xml once; after that
+    // the player's own choice in the game's options stays.
+    public boolean isUiScaleDefaulted() {
+        return p.getBoolean(pfx + "ui_scale_defaulted", false);
+    }
+
+    public void setUiScaleDefaulted() {
+        p.edit().putBoolean(pfx + "ui_scale_defaulted", true).apply();
+    }
+
     public int getFpsCap() {
         return p.getInt(pfx + "fps_cap", 0);
     }
@@ -142,7 +154,8 @@ public class InstanceSettings {
     //   ULTRA — quarter from >=2048 too (36 textures, ~398 MB): the last ~50 MB and slightly more
     //           FPS (those atlases are sampled every frame), at the cost of blurry vegetation.
     // Pawn/animal atlases are FBO render targets — never touched at any tier. New pref key: the
-    // old "tex_shrink" was a boolean, reading it as an int would throw. ---
+    // old "tex_shrink" was a boolean, reading it as an int would throw.
+    // RimWorld 1.7: NONE halves textures from 2048 on a side, LOW from 1024, ULTRA from 512. ---
     public static final int TEX_NONE = 0, TEX_LOW = 1, TEX_ULTRA = 2;
 
     // --- Native engine texture cache (TextureCache): Core/DLC/mod textures encoded to ETC2 once,
@@ -170,6 +183,18 @@ public class InstanceSettings {
 
     public void setTexTier(int tier) {
         p.edit().putInt(pfx + "tex_tier", tier).apply();
+    }
+
+    // --- Text size, RimWorld 1.7: the game's text in percent (100 / 120 / 130 / 140), windows keep
+    // their size. 120 by default: at 100 the text is hard to read on a phone. ---
+    public static final int[] TEXT_SCALES = { 100, 120, 130, 140 };
+
+    public int getTextScale() {
+        return p.getInt(pfx + "text_scale", 120);
+    }
+
+    public void setTextScale(int percent) {
+        p.edit().putInt(pfx + "text_scale", percent).apply();
     }
 
     // --- Haptic feedback: light vibration tick on on-screen button presses. Default OFF. ---
@@ -200,7 +225,7 @@ public class InstanceSettings {
     //                      (com.rimdroid.game.NativeMono, box64 wrappedlibmonobdwgc.c);
     //   ENGINE_NATIVE      Unity's own ARM64 Android player, the C# on ARM64 Mono through il2mono
     //                      (com.rimdroid.game.NativeEngine; only in APKs built with that module).
-    // The last two are RimWorld 1.6 only.
+    // The last two are RimWorld 1.6 only (NativeEngine.isRimWorld16: 1.5 has the same data folder).
     public static final int ENGINE_BOX64 = 0, ENGINE_BOX64_MONO = 1, ENGINE_NATIVE = 2;
 
     /**
@@ -216,13 +241,19 @@ public class InstanceSettings {
         if (p.getBoolean(pfx + "native_engine", false)) engine = ENGINE_NATIVE;
         else if (p.contains(pfx + "native_mono") || hasBeenPlayed())
             engine = p.getBoolean(pfx + "native_mono", true) ? ENGINE_BOX64_MONO : ENGINE_BOX64;
-        else engine = com.rimdroid.game.NativeEngine.isAvailable() ? ENGINE_NATIVE : ENGINE_BOX64_MONO;
+        else engine = com.rimdroid.game.NativeEngine.isAvailable() && isRimWorld16() ? ENGINE_NATIVE : ENGINE_BOX64_MONO;
         setEngine(engine);
         return engine;
     }
 
     public void setEngine(int engine) {
         p.edit().putInt(pfx + "engine", engine).apply();
+    }
+
+    /** Whether the instance holds RimWorld 1.6 (or cannot tell): the native engine is 1.6 only. */
+    private boolean isRimWorld16() {
+        AppStorage st = AppStorage.getSingleton();
+        return st == null || com.rimdroid.game.NativeEngine.isRimWorld16(st.getInstanceDir(instanceName));
     }
 
     /** Whether the instance was launched before: each launch leaves its log in the instance folder. */
@@ -308,7 +339,7 @@ public class InstanceSettings {
                 Math.max(LauncherPreferences.RENDER_SCALE_ABS_MIN, Math.min(100, pct))).apply();
     }
 
-    /** Stored scale raised to the per-device floor (>=1280x720), as a 0..1 fraction. */
+    /** Stored scale raised to the per-device floor (>=1280x768), as a 0..1 fraction. */
     public float getEffectiveRenderScale(int surfaceW, int surfaceH) {
         int eff = Math.max(getRenderScalePercent(), LauncherPreferences.minRenderScalePercent(surfaceW, surfaceH));
         return Math.min(100, eff) / 100f;

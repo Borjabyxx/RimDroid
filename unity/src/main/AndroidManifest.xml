@@ -15,13 +15,16 @@
 
         <!-- Own process: the Unity engine never shares a process with the launcher or box64.
              Not exported: only the launcher starts it, with the instance and environment it prepared. -->
+        <!-- Hardware accelerated, unlike Unity's template (false): the player draws into its own
+             SurfaceView either way, but our on-screen controls and cursor are Android views above it,
+             and drawn in software they redrew at ~5 fps on a weak phone (Galaxy A14 player, 2026-10-13). -->
         <activity
             android:name="com.rimdroid.nativeunity.NativeUnityActivity"
             android:process=":unity"
             android:exported="false"
             android:launchMode="singleTask"
             android:screenOrientation="sensorLandscape"
-            android:hardwareAccelerated="false"
+            android:hardwareAccelerated="true"
             android:resizeableActivity="false"
             android:theme="@style/UnityThemeSelector"
             android:configChanges="mcc|mnc|locale|touchscreen|keyboard|keyboardHidden|navigation|orientation|screenLayout|uiMode|screenSize|smallestScreenSize|fontScale|layoutDirection|density">

@@ -180,8 +180,7 @@ public class NewInstanceFragment extends Fragment {
         }, "rd-gpu-advise").start();
     }
 
-    /** "RimWorld", or "RimWorld-2"/"-3"/... — the first name with no existing instance directory.
-     *  Lives in AppStorage so the Steam download screen pre-fills the same default. */
+    /** "RimWorld", or "RimWorld2"/"RimWorld3"/... — the first name with no existing instance directory. */
     private static String freeDefaultName() {
         return com.rimdroid.AppStorage.freeDefaultInstanceName();
     }

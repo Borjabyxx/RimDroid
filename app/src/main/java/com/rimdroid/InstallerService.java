@@ -149,7 +149,7 @@ public class InstallerService extends Service {
             // RimWorldLinux binary somewhere. Otherwise we'd extract a non-RimWorld archive and leave
             // an orphaned instance folder that the launcher silently hides (fails isInstalled()).
             broadcastProgress("Checking archive...");
-            if (!zipContainsEntry(zipFile, C.files.RIMWORLD_BIN)) {
+            if (!zipContainsEntry(zipFile, C.files.RIMWORLD_BIN) && !zipContainsEntry(zipFile, WAYLITH_MARKER)) {
                 throw new Exception("RimWorldLinux not found in the archive — this doesn't look like a "
                         + "RimWorld Linux build (nor a GOG installer). Nothing was installed.");
             }
@@ -163,9 +163,12 @@ public class InstallerService extends Service {
         // wrappers, so isInstalled() (which checks the root) passes. If it's somehow missing after
         // extraction, delete the whole instance dir — never leave an orphaned, hidden instance.
         // (GOG extraction already lands RimWorldLinux at the root, so this is a no-op there.)
-        File bin = new File(instanceDir, C.files.RIMWORLD_BIN);
+        // RimWorld 1.7 has no RimWorldLinux: its marker is RimWorld.runtimeconfig.json (Waylith on .NET).
+        String marker = findFile(instanceDir, C.files.RIMWORLD_BIN) == null
+                && findFile(instanceDir, WAYLITH_MARKER) != null ? WAYLITH_MARKER : C.files.RIMWORLD_BIN;
+        File bin = new File(instanceDir, marker);
         if (!bin.exists()) {
-            File found = findFile(instanceDir, C.files.RIMWORLD_BIN);
+            File found = findFile(instanceDir, marker);
             if (found == null) {
                 deleteDir(instanceDir);
                 throw new Exception("RimWorldLinux not found after extraction — nothing was installed.");
@@ -175,9 +178,9 @@ public class InstallerService extends Service {
                 broadcastProgress("Flattening directory structure...");
                 reRoot(gameRoot, instanceDir);
             }
-            bin = new File(instanceDir, C.files.RIMWORLD_BIN);
+            bin = new File(instanceDir, marker);
         }
-        bin.setExecutable(true);
+        if (marker.equals(C.files.RIMWORLD_BIN)) bin.setExecutable(true);
 
         // Expansion installers handed over with the game (the GOG downloader sends every expansion
         // already on the phone). Their payload is game-relative — Data/<Expansion> — so they go into
@@ -320,6 +323,9 @@ public class InstallerService extends Service {
 
     /** True if the archive contains an entry whose file name (last path segment) equals {@code fileName}.
      *  Uses ZipFile (reads the central directory directly) so it's instant even for a ~200MB game zip. */
+    /** The file that marks a RimWorld 1.7 (Waylith / .NET) build, which has no RimWorldLinux. */
+    private static final String WAYLITH_MARKER = "RimWorld.runtimeconfig.json";
+
     private boolean zipContainsEntry(File zipFile, String fileName) throws IOException {
         try (java.util.zip.ZipFile zf = new java.util.zip.ZipFile(zipFile)) {
             java.util.Enumeration<? extends ZipEntry> en = zf.entries();

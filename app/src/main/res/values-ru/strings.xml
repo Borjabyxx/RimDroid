@@ -92,6 +92,8 @@
     <string name="fps_cap_hint">Ограничивает FPS, чтобы сгладить скачки и освободить CPU под игру — это может поднять скорость игры (TPS) на слабых устройствах. Попробуй 60 или 30, если счётчик прыгает.</string>
     <string name="texq_label">Сжатие текстур</string>
     <string name="texq_hint">Ужимает текстуры ради памяти и FPS — без этого несколько DLC могут не загрузиться на слабых телефонах. Затрагивает в основном растительность и ресурсы; пешки и животные не трогаются никогда. «Низкое» — хороший баланс, «Очень низкое» чуть быстрее, но растения выглядят мыльными.</string>
+    <string name="text_scale_label">Размер текста</string>
+    <string name="text_scale_hint">Увеличивает текст в игре; окна и кнопки остаются прежними. При 130–140 % часть надписей в узких полях может не влезать. Только RimWorld 1.7.</string>
     <string name="texq_no">Нет</string>
     <string name="texq_low">Низкое</string>
     <string name="texq_ultra">Очень низкое</string>
@@ -100,7 +102,7 @@
     <string name="fps_cap_off">Без ограничения</string>
     <string name="render_res_label">Разрешение рендера</string>
     <string name="render_res_relative">Во весь экран</string>
-    <string name="render_res_fixed_169">С чёрными краями 1280×720 — самое быстрое</string>
+    <string name="render_res_fixed_169">С чёрными краями 1366×768 — самое быстрое</string>
     <string name="render_res_fullscreen">весь экран</string>
     <string name="render_res_black_margins">чёрные поля</string>
     <string name="render_res_hint">Ниже = больше FPS на слабых GPU и крупнее интерфейс. Нативное = резче.</string>
@@ -232,11 +234,12 @@
 
     <!-- Экран загрузки -->
     <string name="download_game_title">Загрузка RimWorld из Steam</string>
-    <string name="download_version_note">Загружает Linux-сборку прямо в новый инстанс — без Termux и без ПК.</string>
-    <string name="download_instance_hint">Имя инстанса (например, RimWorld 1.5)</string>
+    <string name="download_version_note">Загружает Linux-сборку архивом .zip в Download/RimDroid, а затем создаёт из него инстанс — без Termux и без ПК. Нужен «Доступ ко всем файлам».</string>
     <string name="download_version_label">Версия игры</string>
-    <string name="download_version_15">RimWorld 1.5 (устаревшая)</string>
     <string name="download_version_16">RimWorld 1.6</string>
+    <string name="download_version_17">RimWorld 1.7</string>
+    <string name="download_version_17_note">На момент выхода этой версии (15.10.2026) публичной стабильной RimWorld 1.7 ещё нет, поэтому мы качаем последнюю сборку unstable.</string>
+    <string name="download_unstable">Манифест из ветки unstable (бета)</string>
     <string name="download_user_hint">Логин Steam</string>
     <string name="download_pass_hint">Пароль Steam</string>
     <string name="download_login_note">Логин отправляется в Steam (так же, как это делает DepotDownloader) и НЕ сохраняется. Подтвердите вход в приложении Steam Mobile или введите код Steam Guard, когда попросят.</string>
@@ -271,7 +274,7 @@
     <string name="gog_install_dlc">Установить</string>
     <string name="gog_item_dlc">DLC · %1$s</string>
     <string name="new_instance_with_dlc">%1$s\n+ DLC: %2$d</string>
-    <string name="download_manifest_hint">Дополнительно: Manifest ID — пусто = последняя сборка выбранной версии</string>
+    <string name="download_manifest_hint">Дополнительно: Manifest ID — пусто = сборка выбранной версии по умолчанию</string>
     <string name="download_start">Загрузить</string>
     <string name="download_tab_game">Игра</string>
     <string name="download_tab_dlc">DLC</string>

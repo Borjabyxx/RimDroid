@@ -139,9 +139,9 @@ public class GameLauncher {
     private static String fixedResReport(InstanceSettings s) {
         switch (s.getFixedResMode()) {
             case InstanceSettings.FIXED_720_16_9:
-                return "fixed 1280x720 16:9 (black margins) — renders 720p, upscaled to the box";
+                return "fixed 1366x768 16:9 (black margins) — renders 768 lines, upscaled to the box";
             case InstanceSettings.FIXED_720_4_3:
-                return "fixed 960x720 4:3 (black margins) — renders 720p, upscaled to the box";
+                return "fixed 1024x768 4:3 (black margins) — renders 768 lines, upscaled to the box";
             default:
                 return "fullscreen (device native x render scale)";
         }

@@ -300,9 +300,11 @@ public class NativeGameOverlay extends FrameLayout
     // Positions handed to the player are relative to its box (InputControlsView's gx/gy give them that
     // way for the on-screen controls); the gestures here work in this view's coordinates and take
     // the margins off the same way.
+    // A tap acts where the finger is, but the drawn cursor stays where the stick left it, as on the
+    // box64 engine: players who aim with the stick lost the pointer after every tap (player, 2026-10-13).
     private void click(int button, int x, int y) {
-        controls.moveCursorTo(x, y);
         final int bx = x - boxLeft, by = y - boxTop;
+        touch(bx, by);   // the game's pointer to the finger, then the press there
         button(button, true, bx, by);
         ui.postDelayed(() -> button(button, false, bx, by), 50);
     }
@@ -327,8 +329,8 @@ public class NativeGameOverlay extends FrameLayout
         @Override public void onScaleEnd(ScaleGestureDetector dt) { scaling = false; }
     }
 
+    // Zooms where the fingers are (scroll moves the game's pointer there); the drawn cursor stays.
     private void pinchScroll(int x, int y, int notches) {
-        controls.moveCursorTo(x, y);
         scroll(x - boxLeft, y - boxTop, notches);
     }
 

@@ -167,6 +167,11 @@ public class InputControlsView extends View {
     // ====================== injection (called by elements) =====================
 
     /** Called by GameActivity with the letterbox game rect (screen px). */
+    /** Game pixels per view pixel (the game may render smaller than the screen and be scaled up). */
+    public void setRenderScale(float scale) {
+        if (scale > 0f) renderScale = scale;
+    }
+
     public void setGameRect(int left, int top, int w, int h) {
         gameLeft = left; gameTop = top; gameW = w; gameH = h;
         if (curX < 0 && w > 0) { curX = left + w / 2f; curY = top + h / 2f; }   // start cursor centred in the game

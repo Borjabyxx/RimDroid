@@ -1,0 +1,14 @@
+# Wrappers the naming rules cannot express: flat name <TAB> body (aN = the managed arguments).
+InputText	using namespace ImGui; return InputText(a0, const_cast<char*>(a1), a2, a3, Any{a4}, a5);
+InputTextMultiline	using namespace ImGui; return InputTextMultiline(a0, const_cast<char*>(a1), a2, Ref<ImVec2>{a3}, a4, Any{a5}, a6);
+InputTextWithHint	using namespace ImGui; return InputTextWithHint(a0, a1, const_cast<char*>(a2), a3, a4, Any{a5}, a6);
+InputTextEx_internal	using namespace ImGui; return InputTextEx(a0, a1, const_cast<char*>(a2), a3, Ref<ImVec2>{a4}, a5, Any{a6}, a7);
+DataTypeFormatString_internal	using namespace ImGui; return DataTypeFormatString(const_cast<char*>(a0), a1, a2, a3, a4);
+TempInputText_internal	using namespace ImGui; return TempInputText(Ref<ImRect>{a0}, a1, a2, const_cast<char*>(a3), a4, a5);
+ImGuiSelectionBasicStorage_Swap	return a0->Swap(*a1);
+TextV	ImGui::TextUnformatted(a0);
+GetAllocatorFunctions	ImGui::GetAllocatorFunctions(reinterpret_cast<ImGuiMemAllocFunc*>(a0), reinterpret_cast<ImGuiMemFreeFunc*>(a1), a2);
+MenuItem_1	using namespace ImGui; return MenuItem(a0, a1, a2, a3);
+Selectable_1	using namespace ImGui; return Selectable(a0, a1, a2, Ref<ImVec2>{a3});
+ImFont_GetFontBaked	return a0->GetFontBaked(a1 * rd_text_scale(), a2);
+ImFont_CalcTextSizeA	return a0->CalcTextSizeA(a1 * rd_text_scale(), a2, a3, a4, a5, a6);

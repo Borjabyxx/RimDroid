@@ -94,7 +94,7 @@
             </com.google.android.material.textfield.TextInputLayout>
 
             <!-- Shared game-version selector: applies to BOTH the game download and the DLC
-                 download (a 1.5 base + 1.6 DLC, or vice-versa, would version-mismatch). -->
+                 download (a 1.6 base + 1.7 DLC, or vice-versa, would version-mismatch). -->
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
@@ -107,18 +107,27 @@
                 android:layout_height="wrap_content"
                 android:orientation="horizontal">
                 <RadioButton
-                    android:id="@+id/rb_dl_15"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="@string/download_version_15" />
-                <RadioButton
                     android:id="@+id/rb_dl_16"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:layout_marginStart="16dp"
                     android:text="@string/download_version_16"
                     android:checked="true" />
+                <RadioButton
+                    android:id="@+id/rb_dl_17"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="16dp"
+                    android:text="@string/download_version_17" />
             </RadioGroup>
+            <!-- Where 1.7 comes from (shown while 1.7 is picked). -->
+            <TextView
+                android:id="@+id/tv_dl_17_note"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="@string/download_version_17_note"
+                android:textAppearance="?attr/textAppearanceBodySmall"
+                android:layout_marginTop="4dp"
+                android:visibility="gone" />
         </LinearLayout>
 
         <!-- ============ GAME ============ -->
@@ -139,20 +148,8 @@
             <com.google.android.material.textfield.TextInputLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:hint="@string/download_instance_hint"
-                android:layout_marginBottom="12dp">
-                <com.google.android.material.textfield.TextInputEditText
-                    android:id="@+id/et_dl_instance"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:inputType="text" />
-            </com.google.android.material.textfield.TextInputLayout>
-
-            <com.google.android.material.textfield.TextInputLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
                 android:hint="@string/download_manifest_hint"
-                android:layout_marginBottom="16dp">
+                android:layout_marginBottom="4dp">
                 <com.google.android.material.textfield.TextInputEditText
                     android:id="@+id/et_dl_manifest"
                     android:layout_width="match_parent"
@@ -160,11 +157,33 @@
                     android:inputType="number" />
             </com.google.android.material.textfield.TextInputLayout>
 
+            <!-- The manifest's branch: Steam serves a build only for the branch it is on. Shown
+                 once a manifest number is entered; any version. -->
+            <CheckBox
+                android:id="@+id/cb_dl_unstable"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/download_unstable"
+                android:visibility="gone" />
+
+            <Space
+                android:layout_width="match_parent"
+                android:layout_height="12dp" />
+
             <Button
                 android:id="@+id/btn_dl_start"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:text="@string/download_start" />
+
+            <!-- Shown once a game zip is downloaded (or was already there): opens instance creation. -->
+            <Button
+                android:id="@+id/btn_dl_create_instance"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:visibility="gone"
+                android:text="@string/gog_create_instance" />
         </LinearLayout>
 
         <!-- ============ DLC ============ -->
@@ -226,8 +245,7 @@
                     android:layout_width="0dp"
                     android:layout_weight="1"
                     android:layout_height="wrap_content"
-                    android:text="Odyssey"
-                    android:visibility="gone" />
+                    android:text="Odyssey" />
                 <Space
                     android:layout_width="0dp"
                     android:layout_weight="1"

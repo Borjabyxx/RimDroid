@@ -19,6 +19,8 @@ namespace RimDroid
         static float pending, mouseX, mouseY, nextHarmonyCheck;
         static int frame = -1;
         static GameApi game;
+        static Assembly gameAssembly;   // the Assembly-CSharp the game runs (Prepatcher swaps it)
+        static volatile Assembly pendingCopy;   // a reloaded copy, followed once the game runs in it
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
         public static void Initialize()
@@ -27,7 +29,8 @@ namespace RimDroid
             initialized = true;
             try
             {
-                game = new GameApi();
+                gameAssembly = Type.GetType("Verse.Find, Assembly-CSharp", true).Assembly;
+                game = new GameApi(gameAssembly);
                 // The game loads every mod's assemblies on its loading thread and only then, in one
                 // main-thread pass, their textures: the texture cache prefix has to be in place the
                 // moment 0Harmony (built-in mod) appears, not at the next once-a-second frame check.
@@ -35,7 +38,14 @@ namespace RimDroid
                 {
                     try
                     {
-                        if (args.LoadedAssembly.GetName().Name == "0Harmony") ScrollPatch.TryInstall(game.BeginScrollView);
+                        Assembly loaded = args.LoadedAssembly;
+                        if (loaded.GetName().Name == "0Harmony") ScrollPatch.TryInstall(gameAssembly, game.BeginScrollView);
+                        else if (loaded != gameAssembly && loaded.GetName().Name == "Assembly-CSharp")
+                        {
+                            // Only noted here: the copy is not complete yet (see Follow).
+                            pendingCopy = loaded;
+                            Debug.Log("RIMDROID bridge: the game is reloading itself (Prepatcher); following its new copy once it runs");
+                        }
                     }
                     catch (Exception e) { Debug.LogWarning("RIMDROID bridge: patch on assembly load failed: " + e.GetBaseException().Message); }
                 };
@@ -54,6 +64,44 @@ namespace RimDroid
             catch (Exception e) { Fail(e); }
         }
 
+        // Prepatcher (zetrith.prepatcher, required by Performance Fish and others) loads a patched copy
+        // of Assembly-CSharp and restarts the game in it, in the same process. Everything bound to the
+        // first copy then talks to a game that no longer runs: zoom found no window stack and did
+        // nothing, list scrolling and the texture cache patched methods nobody calls (testers' logs,
+        // 2026-10-13). So the bridge follows the copy that loads last, and patches it again.
+        //
+        // Not at its AssemblyLoad, though: at that moment Prepatcher has not finished the copy — fields
+        // it adds (Performance Fish's Verse.Log.FishStashHandle) point to types nothing can resolve yet.
+        // Patching then made Mono load those classes, fail, and remember the failure: the game in the
+        // new copy never drew a frame (black screen, Galaxy S22 tester, 2026-10-13). So the copy is only
+        // noted there, and followed from the frame pump once the game runs in it (its Root is in the
+        // scene): by then the game itself has loaded those classes.
+        static void FollowPendingCopy()
+        {
+            Assembly copy = pendingCopy;
+            if (copy == null) return;
+            Type root = copy.GetType("Verse.Root", false);
+            if (root == null) { pendingCopy = null; return; }
+            if (UnityEngine.Object.FindObjectOfType(root) == null) return;   // not running yet
+            pendingCopy = null;
+            Follow(copy);
+        }
+
+        static void Follow(Assembly copy)
+        {
+            GameApi api;
+            try { api = new GameApi(copy); }
+            catch (Exception e)
+            {
+                Debug.LogWarning("RIMDROID bridge: the game reloaded itself, but its new copy does not bind (" + e.GetBaseException().Message + ")");
+                return;
+            }
+            gameAssembly = copy;
+            game = api;
+            Debug.Log("RIMDROID bridge: the game reloaded itself (Prepatcher); following its new copy");
+            ScrollPatch.TryInstall(copy, api.BeginScrollView);
+        }
+
         internal static void BeginFrame()
         {
             if (failed) return;
@@ -66,7 +114,8 @@ namespace RimDroid
                 if (Time.realtimeSinceStartup >= nextHarmonyCheck)
                 {
                     nextHarmonyCheck = Time.realtimeSinceStartup + 1f;
-                    ScrollPatch.TryInstall(game.BeginScrollView);
+                    FollowPendingCopy();
+                    ScrollPatch.TryInstall(gameAssembly, game.BeginScrollView);
                     TextureCacheLoader.Tick();
                 }
             }
@@ -152,18 +201,18 @@ namespace RimDroid
 
     static class ScrollPatch
     {
-        static bool finished;
+        static Assembly patchedFor;   // the game copy the patches are on
 
-        internal static void TryInstall(MethodInfo original)
+        internal static void TryInstall(Assembly game, MethodInfo original)
         {
-            if (finished) return;
+            if (game == null || patchedFor == game) return;
             // Use whichever 0Harmony the mod loader already loaded: on the native engine RimDroid's
             // built-in mod always carries one, so this no longer depends on the player's mods. The
             // bridge never loads a Harmony DLL itself (a disabled mod's copy could conflict).
             foreach (Assembly assembly in AppDomain.CurrentDomain.GetAssemblies())
             {
                 if (assembly.GetName().Name != "0Harmony") continue;
-                finished = true;
+                patchedFor = game;
                 try
                 {
                     Type harmonyType = assembly.GetType("HarmonyLib.Harmony", true);
@@ -179,15 +228,23 @@ namespace RimDroid
                             && p[1].ParameterType == methodType) { patch = candidate; break; }
                     }
                     if (patch == null) throw new MissingMethodException("Harmony.Patch");
-                    object[] args = new object[patch.GetParameters().Length];
-                    args[0] = original;
-                    args[1] = patchInfo;
-                    patch.Invoke(harmony, args);
-                    Debug.Log("RIMDROID bridge: list scrolling enabled with Harmony " + assembly.GetName().Version);
+                    // Each patch on its own: one that fails must not cost the others.
+                    try
+                    {
+                        object[] args = new object[patch.GetParameters().Length];
+                        args[0] = original;
+                        args[1] = patchInfo;
+                        patch.Invoke(harmony, args);
+                        Debug.Log("RIMDROID bridge: list scrolling enabled with Harmony " + assembly.GetName().Version);
+                    }
+                    catch (Exception e)
+                    {
+                        Debug.LogWarning("RIMDROID bridge: list scrolling unavailable (" + e.GetBaseException().Message + ")");
+                    }
                     // DDS textures the GPU cannot hold compressed (DdsRecompress): a postfix on the loader.
                     try
                     {
-                        Type dds = Type.GetType("Verse.ModDdsLoader, Assembly-CSharp", false);
+                        Type dds = game.GetType("Verse.ModDdsLoader", false);
                         MethodInfo loader = dds == null ? null : dds.GetMethod("TryLoadDds",
                             BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static);
                         if (loader == null) Debug.Log("RIMDROID bridge: no ModDdsLoader.TryLoadDds in this game build; DDS textures stay as they are");
@@ -208,7 +265,7 @@ namespace RimDroid
                     // Restart through the launcher (RestartPatch): a prefix on GenCommandLine.Restart.
                     try
                     {
-                        Type cmd = Type.GetType("Verse.GenCommandLine, Assembly-CSharp", false);
+                        Type cmd = game.GetType("Verse.GenCommandLine", false);
                         MethodInfo restart = cmd == null ? null : cmd.GetMethod("Restart", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static);
                         if (restart == null) Debug.Log("RIMDROID bridge: no GenCommandLine.Restart in this game build");
                         else
@@ -230,7 +287,7 @@ namespace RimDroid
                         if (!TextureCacheLoader.Enabled) Debug.Log("RIMDROID bridge: texture cache off");
                         else
                         {
-                            Type loaderType = Type.GetType("Verse.ModContentLoader`1, Assembly-CSharp", false);
+                            Type loaderType = game.GetType("Verse.ModContentLoader`1", false);
                             MethodInfo loadTexture = loaderType == null ? null : loaderType.MakeGenericType(typeof(Texture2D))
                                 .GetMethod("LoadTexture", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static);
                             if (loadTexture == null) Debug.Log("RIMDROID bridge: no ModContentLoader<Texture2D>.LoadTexture in this game build; texture cache unused");

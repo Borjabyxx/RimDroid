@@ -21,6 +21,7 @@ namespace RimDroid
         static readonly string dir = Env("RIMDROID_TEXCACHE_DIR");
         static readonly string root = Env("RIMDROID_TEXCACHE_ROOT");
         static PropertyInfo fullPath;
+        static Type fullPathType;
         static int hits, misses, stale, failed, reported;
         static float changedAt;
 
@@ -39,7 +40,12 @@ namespace RimDroid
             string path = null;
             try
             {
-                if (fullPath == null) fullPath = __0.GetType().GetProperty("FullPath");
+                // Per type: after a Prepatcher restart the game's VirtualFile is the new copy's type.
+                if (fullPath == null || fullPathType != __0.GetType())
+                {
+                    fullPathType = __0.GetType();
+                    fullPath = fullPathType.GetProperty("FullPath");
+                }
                 path = fullPath == null ? null : fullPath.GetValue(__0, null) as string;
                 if (path == null) return true;
                 Texture2D tex = Load(path);

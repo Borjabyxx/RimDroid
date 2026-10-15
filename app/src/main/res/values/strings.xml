@@ -93,6 +93,8 @@ In the cloud: %2$s
     <string name="fps_cap_hint">Caps FPS to smooth out swings and free the CPU for the game — which can raise the game speed (TPS) on weaker devices. Try 60 or 30 if the counter jumps around.</string>
     <string name="texq_label">Texture compression</string>
     <string name="texq_hint">Shrinks textures to save memory and gain FPS — needed to load several DLC on weaker phones. It mainly affects vegetation and resources; pawns and animals are never touched. Low is a good balance; Ultra low is a bit faster but plants look blurry.</string>
+    <string name="text_scale_label">Text size</string>
+    <string name="text_scale_hint">Makes the game\'s text bigger; windows and buttons keep their size. At 130–140 % some labels in narrow fields may not fit. RimWorld 1.7 only.</string>
     <string name="texq_no">No</string>
     <string name="texq_low">Low</string>
     <string name="texq_ultra">Ultra low</string>
@@ -101,7 +103,7 @@ In the cloud: %2$s
     <string name="fps_cap_off">No limit</string>
     <string name="render_res_label">Render resolution</string>
     <string name="render_res_relative">Fullscreen</string>
-    <string name="render_res_fixed_169">Black margins 1280×720 — fastest</string>
+    <string name="render_res_fixed_169">Black margins 1366×768 — fastest</string>
     <string name="render_res_fullscreen">fullscreen</string>
     <string name="render_res_black_margins">black margins</string>
     <string name="render_res_hint">Lower = more FPS on weak GPUs and a bigger UI. Native = sharpest.</string>
@@ -253,11 +255,12 @@ In the cloud: %2$s
 
     <!-- Download screen -->
     <string name="download_game_title">Download RimWorld from Steam</string>
-    <string name="download_version_note">Downloads the Linux build straight into a new instance — no Termux, no PC.</string>
-    <string name="download_instance_hint">Instance name (e.g. RimWorld 1.5)</string>
+    <string name="download_version_note">Downloads the Linux build as a .zip into Download/RimDroid, then creates an instance from it — no Termux, no PC. Needs \"All files access\".</string>
     <string name="download_version_label">Game version</string>
-    <string name="download_version_15">RimWorld 1.5 (legacy)</string>
     <string name="download_version_16">RimWorld 1.6</string>
+    <string name="download_version_17">RimWorld 1.7</string>
+    <string name="download_version_17_note">When this version was released (15 October 2026) there was no public stable RimWorld 1.7 yet, so we download the latest unstable build.</string>
+    <string name="download_unstable">Manifest from the unstable branch (beta)</string>
     <string name="download_user_hint">Steam username</string>
     <string name="download_pass_hint">Steam password</string>
     <string name="download_login_note">Your login is sent to Steam (the same way DepotDownloader works) and is NOT stored. Approve the sign-in in your Steam Mobile app, or enter the Steam Guard code when asked.</string>
@@ -295,7 +298,7 @@ In the cloud: %2$s
     <string name="gog_install_dlc">Install</string>
     <string name="gog_item_dlc">DLC · %1$s</string>
     <string name="new_instance_with_dlc">%1$s\n+ DLC: %2$d</string>
-    <string name="download_manifest_hint">Advanced: Manifest ID — blank = the latest build of the chosen version</string>
+    <string name="download_manifest_hint">Advanced: Manifest ID — blank = the chosen version\'s default build</string>
     <string name="download_start">Download</string>
     <string name="download_tab_game">Game</string>
     <string name="download_tab_dlc">DLC</string>

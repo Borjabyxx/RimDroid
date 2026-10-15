@@ -61,6 +61,14 @@
             android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboard|keyboardHidden|navigation|uiMode|density|touchscreen"
             android:screenOrientation="landscape" />
 
+        <!-- RimWorld 1.7 on .NET (experimental): own process, never the launcher's or box64's. -->
+        <activity
+            android:name=".ClrActivity"
+            android:process=":clr"
+            android:exported="false"
+            android:screenOrientation="sensorLandscape"
+            android:theme="@style/AppTheme" />
+
         <activity
             android:name=".ControlsEditorActivity"
             android:screenOrientation="sensorLandscape"

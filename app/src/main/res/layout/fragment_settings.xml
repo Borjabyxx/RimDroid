@@ -267,6 +267,7 @@
          memory) — for DLC-heavy loads and weaker phones. The chooser sits ABOVE its
          explanatory text so the choice reads first and the "why" follows. -->
     <com.google.android.material.card.MaterialCardView
+        android:id="@+id/card_texq"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_marginBottom="12dp"
@@ -318,6 +319,42 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="@string/texq_hint"
+            android:textAppearance="?attr/textAppearanceBodySmall" />
+      </LinearLayout>
+    </com.google.android.material.card.MaterialCardView>
+
+    <!-- ============================ TEXT SIZE (RimWorld 1.7) ============================ -->
+    <com.google.android.material.card.MaterialCardView
+        android:id="@+id/card_text_scale"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginBottom="12dp"
+        app:cardCornerRadius="14dp"
+        app:cardElevation="2dp">
+
+      <LinearLayout
+          android:layout_width="match_parent"
+          android:layout_height="wrap_content"
+          android:orientation="vertical"
+          android:padding="16dp">
+
+        <TextView
+            style="@style/AppTheme.CardHeader"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/text_scale_label"
+            android:layout_marginBottom="6dp" />
+
+        <Spinner
+            android:id="@+id/sp_text_scale"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="8dp" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/text_scale_hint"
             android:textAppearance="?attr/textAppearanceBodySmall" />
       </LinearLayout>
     </com.google.android.material.card.MaterialCardView>
