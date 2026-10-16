@@ -184,6 +184,9 @@ public class ClrActivity extends Activity {
             android.system.Os.setenv("RIMDROID_TEXT_SCALE", String.valueOf(gi.settings().getTextScale() / 100f), true);
             android.system.Os.setenv("RIMDROID_TEX_SHRINK_MIN", tier == com.rimdroid.InstanceSettings.TEX_ULTRA ? "512"
                     : tier == com.rimdroid.InstanceSettings.TEX_LOW ? "1024" : "2048", true);
+            // GPUs without BC textures: libvulkan.so re-encodes them to ETC2/EAC; DotnetEngine has
+            // turned the engine's GPU encoder off for it (propertiesFor, above).
+            if (DotnetEngine.bcConversion(gi)) android.system.Os.setenv("RIMDROID_BC_CONVERT", "1", true);
             DotnetEngine.defaultUiScale(gi, gi.settings(), renderW, renderH);
             // The 1.6 built-in mod is no use on 1.7 (see BuiltinControllerUiMod.install): off if on.
             com.rimdroid.BuiltinControllerUiMod.setActive(new File(gamePath), false);

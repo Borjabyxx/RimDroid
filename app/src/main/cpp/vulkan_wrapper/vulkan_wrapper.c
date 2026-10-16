@@ -68,64 +68,127 @@ static VkResult VKAPI_CALL acquire_wrap(VkDevice d, VkSwapchainKHR sc, uint64_t 
 // Hooks shared by the instance and device lookups.
 static PFN_vkVoidFunction hook(const char* name, PFN_vkVoidFunction f);
 
-// ---- "no BC" mode: pretend to be a GPU without BC texture formats ----------------------------------
-// Mali and PowerVR phones have no BC1/BC7, and RimWorld 1.7's engine encodes only those. What it does
-// without them (uncompressed textures? a crash?) can be seen on an Adreno phone by hiding BC here:
-// features say no textureCompressionBC, the BC formats report no features, image-format queries and
-// image creation for them fail. On when the file rd_no_bc exists in the game folder ($HOME, set by
-// ClrActivity) or RIMDROID_VK_NO_BC=1.
-static int g_noBc = -1;
+// ---- BC on GPUs without it (Mali, PowerVR) ----------------------------------------------------------
+// RimWorld 1.7's engine compresses textures to BC only (BC7 for colour, BC4 for masks), and Mali and
+// PowerVR GPUs cannot sample BC: on an Adreno phone with BC hidden the engine had no other way and
+// every texture failed (2026-10-13). Here every BC texture is created in the ETC2/EAC format with the
+// same block size instead - BC7/BC3/BC2 -> ETC2 RGBA8, BC1 -> ETC2 RGB8, BC4 -> EAC R11, BC5 -> EAC
+// RG11, 16 or 8 bytes per 4x4 block either way - so every size, offset and copy region the engine
+// computes stays right, and the blocks are re-encoded in place in the engine's upload buffer just
+// before the command buffer that copies them reaches the GPU (bctranscode.cpp: bcdec, etcpak). The
+// engine's GPU encoder writes BC blocks the CPU never sees; on these GPUs DotnetPatcher turns it off
+// (the engine then encodes on the CPU), so the blocks come from memory the CPU has mapped. BC1's
+// one-bit alpha has no counterpart in ETC2 RGB8 and is lost; BC6H and signed BC4/BC5 are not handled.
+// On when the GPU has no textureCompressionBC, or on any GPU for a test: the file rd_no_bc in the game
+// folder ($HOME, set by ClrActivity) or RIMDROID_BC_CONVERT=1 (the launcher's switch, set together
+// with the engine patch).
+static int g_bcConv = -1;    // -1: not decided yet
+static int g_realBc = -1;    // the GPU's own textureCompressionBC; -1: not asked yet
 static PFN_vkGetPhysicalDeviceFeatures g_getFeatures;
 static PFN_vkGetPhysicalDeviceFeatures2 g_getFeatures2;
 static PFN_vkGetPhysicalDeviceFormatProperties g_getFormatProps;
 static PFN_vkGetPhysicalDeviceFormatProperties2 g_getFormatProps2;
 static PFN_vkGetPhysicalDeviceImageFormatProperties g_getImageFormatProps;
 static PFN_vkGetPhysicalDeviceImageFormatProperties2 g_getImageFormatProps2;
-static unsigned g_bcImagesRefused;
+static PFN_vkCreateDevice g_createDevice;
 
-static int no_bc(void) {
-    if (g_noBc < 0) {
-        const char* e = getenv("RIMDROID_VK_NO_BC");
-        const char* home = getenv("HOME");
-        char path[512];
-        snprintf(path, sizeof path, "%s/rd_no_bc", home ? home : "");
-        g_noBc = (e && e[0] == '1') || (home && access(path, F_OK) == 0);
-        if (g_noBc) __android_log_print(ANDROID_LOG_WARN, "RimDroid/vkmem", "NO-BC MODE: BC texture formats hidden from the game (pretending to be a Mali/PowerVR GPU)");
-    }
-    return g_noBc;
+static int bc_convert(void) {
+    if (g_bcConv >= 0) return g_bcConv;
+    const char* e = getenv("RIMDROID_BC_CONVERT");
+    const char* home = getenv("HOME");
+    char path[512];
+    snprintf(path, sizeof path, "%s/rd_no_bc", home ? home : "");
+    int forced = (e && e[0] == '1') || (home && access(path, F_OK) == 0);
+    if (!forced && g_realBc < 0) return 0;   // decided once the GPU's features are known
+    g_bcConv = forced || g_realBc == 0;
+    __android_log_print(ANDROID_LOG_WARN, "RimDroid/vkmem", "BC conversion %s (GPU's own BC: %s%s)", g_bcConv ? "ON" : "off",
+                        g_realBc < 0 ? "not asked" : g_realBc ? "yes" : "no", forced ? "; forced for a test" : "");
+    return g_bcConv;
 }
 
 static int is_bc(VkFormat f) { return f >= VK_FORMAT_BC1_RGB_UNORM_BLOCK && f <= VK_FORMAT_BC7_SRGB_BLOCK; }
 
+// The format a BC texture is created in when converting; UNDEFINED where there is no encoder here.
+static VkFormat bc_substitute(VkFormat f) {
+    switch (f) {
+        case VK_FORMAT_BC1_RGB_UNORM_BLOCK: case VK_FORMAT_BC1_RGBA_UNORM_BLOCK: return VK_FORMAT_ETC2_R8G8B8_UNORM_BLOCK;
+        case VK_FORMAT_BC1_RGB_SRGB_BLOCK: case VK_FORMAT_BC1_RGBA_SRGB_BLOCK: return VK_FORMAT_ETC2_R8G8B8_SRGB_BLOCK;
+        case VK_FORMAT_BC2_UNORM_BLOCK: case VK_FORMAT_BC3_UNORM_BLOCK: case VK_FORMAT_BC7_UNORM_BLOCK:
+            return VK_FORMAT_ETC2_R8G8B8A8_UNORM_BLOCK;
+        case VK_FORMAT_BC2_SRGB_BLOCK: case VK_FORMAT_BC3_SRGB_BLOCK: case VK_FORMAT_BC7_SRGB_BLOCK:
+            return VK_FORMAT_ETC2_R8G8B8A8_SRGB_BLOCK;
+        case VK_FORMAT_BC4_UNORM_BLOCK: return VK_FORMAT_EAC_R11_UNORM_BLOCK;
+        case VK_FORMAT_BC5_UNORM_BLOCK: return VK_FORMAT_EAC_R11G11_UNORM_BLOCK;
+        default: return VK_FORMAT_UNDEFINED;
+    }
+}
+
+// The format to ask the driver about: the substitute while converting, else the format itself.
+static VkFormat bc_query_format(VkFormat f) {
+    if (!is_bc(f) || !bc_convert()) return f;
+    return bc_substitute(f);   // UNDEFINED: the driver reports no support, as it should
+}
+
 static void VKAPI_CALL getfeatures_wrap(VkPhysicalDevice pd, VkPhysicalDeviceFeatures* f) {
     g_getFeatures(pd, f);
-    if (no_bc()) f->textureCompressionBC = VK_FALSE;
+    if (g_realBc < 0) g_realBc = f->textureCompressionBC;
+    if (bc_convert()) f->textureCompressionBC = VK_TRUE;
 }
 
 static void VKAPI_CALL getfeatures2_wrap(VkPhysicalDevice pd, VkPhysicalDeviceFeatures2* f) {
     g_getFeatures2(pd, f);
-    if (no_bc()) f->features.textureCompressionBC = VK_FALSE;
+    if (g_realBc < 0) g_realBc = f->features.textureCompressionBC;
+    if (bc_convert()) f->features.textureCompressionBC = VK_TRUE;
 }
 
 static void VKAPI_CALL getformatprops_wrap(VkPhysicalDevice pd, VkFormat format, VkFormatProperties* p) {
-    g_getFormatProps(pd, format, p);
-    if (no_bc() && is_bc(format)) { p->linearTilingFeatures = 0; p->optimalTilingFeatures = 0; p->bufferFeatures = 0; }
+    VkFormat q = bc_query_format(format);
+    if (q == VK_FORMAT_UNDEFINED) { memset(p, 0, sizeof *p); return; }
+    g_getFormatProps(pd, q, p);
 }
 
 static void VKAPI_CALL getformatprops2_wrap(VkPhysicalDevice pd, VkFormat format, VkFormatProperties2* p) {
-    g_getFormatProps2(pd, format, p);
-    if (no_bc() && is_bc(format)) { p->formatProperties.linearTilingFeatures = 0; p->formatProperties.optimalTilingFeatures = 0; p->formatProperties.bufferFeatures = 0; }
+    VkFormat q = bc_query_format(format);
+    g_getFormatProps2(pd, q == VK_FORMAT_UNDEFINED ? format : q, p);
+    if (q == VK_FORMAT_UNDEFINED) memset(&p->formatProperties, 0, sizeof p->formatProperties);
 }
 
 static VkResult VKAPI_CALL getimageformatprops_wrap(VkPhysicalDevice pd, VkFormat format, VkImageType type, VkImageTiling tiling,
                                                     VkImageUsageFlags usage, VkImageCreateFlags flags, VkImageFormatProperties* p) {
-    if (no_bc() && is_bc(format)) return VK_ERROR_FORMAT_NOT_SUPPORTED;
-    return g_getImageFormatProps(pd, format, type, tiling, usage, flags, p);
+    VkFormat q = bc_query_format(format);
+    if (q == VK_FORMAT_UNDEFINED) return VK_ERROR_FORMAT_NOT_SUPPORTED;
+    return g_getImageFormatProps(pd, q, type, tiling, usage, flags, p);
 }
 
 static VkResult VKAPI_CALL getimageformatprops2_wrap(VkPhysicalDevice pd, const VkPhysicalDeviceImageFormatInfo2* info, VkImageFormatProperties2* p) {
-    if (no_bc() && is_bc(info->format)) return VK_ERROR_FORMAT_NOT_SUPPORTED;
-    return g_getImageFormatProps2(pd, info, p);
+    VkFormat q = bc_query_format(info->format);
+    if (q == VK_FORMAT_UNDEFINED) return VK_ERROR_FORMAT_NOT_SUPPORTED;
+    if (q == info->format) return g_getImageFormatProps2(pd, info, p);
+    VkPhysicalDeviceImageFormatInfo2 copy = *info;
+    copy.format = q;
+    return g_getImageFormatProps2(pd, &copy, p);
+}
+
+// The engine asks for the textureCompressionBC it was told about; a GPU without it would refuse the
+// device. Left out of the request (in the caller's own VkPhysicalDeviceFeatures2 too: the driver only
+// reads it).
+static VkResult VKAPI_CALL createdevice_wrap(VkPhysicalDevice pd, const VkDeviceCreateInfo* info, const VkAllocationCallbacks* a, VkDevice* out) {
+    if (g_realBc < 0) {
+        PFN_vkGetPhysicalDeviceFeatures gf = g_getFeatures ? g_getFeatures : (PFN_vkGetPhysicalDeviceFeatures)real("vkGetPhysicalDeviceFeatures");
+        if (gf) { VkPhysicalDeviceFeatures f; gf(pd, &f); g_realBc = f.textureCompressionBC; }
+    }
+    if (g_realBc != 0) return g_createDevice(pd, info, a, out);
+    VkDeviceCreateInfo copy = *info;
+    VkPhysicalDeviceFeatures features;
+    if (info->pEnabledFeatures) {
+        features = *info->pEnabledFeatures;
+        features.textureCompressionBC = VK_FALSE;
+        copy.pEnabledFeatures = &features;
+    }
+    for (VkBaseOutStructure* s = (VkBaseOutStructure*)info->pNext; s; s = s->pNext)
+        if (s->sType == VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2)
+            ((VkPhysicalDeviceFeatures2*)s)->features.textureCompressionBC = VK_FALSE;
+    return g_createDevice(pd, &copy, a, out);
 }
 
 // ---- memory diagnosis (2026-10-14) ------------------------------------------------------------------
@@ -149,6 +212,9 @@ static uint64_t g_lastLog;
 static unsigned mb(VkDeviceSize b) { return (unsigned)((b + (1 << 19)) >> 20); }
 static void cmd_summary(void);
 static void pools_summary(void);
+static void bc_summary(void);
+static void bc_forget_mapping(VkDeviceMemory m);
+static void bc_note_memory(VkDeviceMemory m, uint32_t type);
 static void ring_add(const char* fmt, ...);
 static unsigned g_nullWrites;
 static void target_remember(VkImage img, uint32_t w, uint32_t h);
@@ -183,6 +249,7 @@ static void mem_summary(void) {   // g_mu held
     pools_summary();
     if (g_shrinkCount) MLOG("textures shrunk: %u, ~%u MB saved, %u readbacks of a dropped level", g_shrinkCount, mb(g_shrinkSavedApprox), g_shrinkReadbacks);
     if (g_nullWrites) MLOG("descriptor writes with a null handle so far: %u", g_nullWrites);
+    bc_summary();
 }
 
 static VkResult VKAPI_CALL allocmem_wrap(VkDevice d, const VkMemoryAllocateInfo* info, const VkAllocationCallbacks* a, VkDeviceMemory* out) {
@@ -192,6 +259,7 @@ static VkResult VKAPI_CALL allocmem_wrap(VkDevice d, const VkMemoryAllocateInfo*
         return r;
     }
     uint64_t key = (uint64_t)*out;
+    bc_note_memory(*out, info->memoryTypeIndex);
     pthread_mutex_lock(&g_mu);
     for (unsigned i = (unsigned)(key * 0x9E3779B97F4A7C15ULL >> 48), n = 0; n < SLOTS; i = (i + 1) & (SLOTS - 1), n++)
         if (g_mem[i].mem == 0 || g_mem[i].mem == TOMB) { g_mem[i].mem = key; g_mem[i].size = info->allocationSize; break; }
@@ -207,6 +275,7 @@ static VkResult VKAPI_CALL allocmem_wrap(VkDevice d, const VkMemoryAllocateInfo*
 
 static void VKAPI_CALL freemem_wrap(VkDevice d, VkDeviceMemory m, const VkAllocationCallbacks* a) {
     uint64_t key = (uint64_t)m;
+    if (key) bc_forget_mapping(m);
     if (key) {
         pthread_mutex_lock(&g_mu);
         for (unsigned i = (unsigned)(key * 0x9E3779B97F4A7C15ULL >> 48), n = 0; n < SLOTS && g_mem[i].mem; i = (i + 1) & (SLOTS - 1), n++)
@@ -415,7 +484,10 @@ static VkResult VKAPI_CALL alloccb_wrap(VkDevice d, const VkCommandBufferAllocat
     return r;
 }
 
+static void bc_forget(VkCommandBuffer cb);
+
 static void VKAPI_CALL freecb_wrap(VkDevice d, VkCommandPool p, uint32_t n, const VkCommandBuffer* cbs) {
+    for (uint32_t i = 0; i < n; i++) bc_forget(cbs[i]);
     pthread_mutex_lock(&g_mu);
     g_cbFreed += n;
     g_cbLive -= n;
@@ -426,6 +498,368 @@ static void VKAPI_CALL freecb_wrap(VkDevice d, VkCommandPool p, uint32_t n, cons
 static VkResult VKAPI_CALL querypool_wrap(VkDevice d, const VkQueryPoolCreateInfo* info, const VkAllocationCallbacks* a, VkQueryPool* out) {
     MLOG("query pool: type %d, %u queries", info->queryType, info->queryCount);
     return g_queryPool(d, info, a, out);
+}
+
+// ---- BC conversion bookkeeping ---------------------------------------------------------------------
+// What the re-encoding needs to find the engine's blocks (see "BC on GPUs without it"): which images
+// were created converted and from which BC format, where each buffer is bound, where each memory
+// object is mapped. A copy into a converted image is noted for its command buffer and done at that
+// command buffer's vkQueueSubmit: by then the engine has written its upload buffer, and the GPU has
+// not read it yet. A copy whose buffer the CPU has not mapped (blocks the GPU produced) is counted
+// and logged: its blocks stay BC.
+#include "bctranscode.h"
+
+typedef struct { uint64_t key, a, b; } MapSlot;
+typedef struct { MapSlot* s; unsigned cap, live, tombs; } HMap;
+#define HMAP_TOMB (~0ULL)
+
+static unsigned hmap_slot(const HMap* m, uint64_t key) { return (unsigned)((key * 0x9E3779B97F4A7C15ULL) >> 32) & (m->cap - 1); }
+
+static MapSlot* hmap_find(HMap* m, uint64_t key) {
+    if (!m->cap || !key || key == HMAP_TOMB) return NULL;
+    for (unsigned i = hmap_slot(m, key), n = 0; n < m->cap; i = (i + 1) & (m->cap - 1), n++) {
+        if (m->s[i].key == 0) return NULL;
+        if (m->s[i].key == key) return &m->s[i];
+    }
+    return NULL;
+}
+
+static void hmap_put(HMap* m, uint64_t key, uint64_t a, uint64_t b);
+
+// Twice the size when at least a quarter is live, else the same size without the tombstones.
+static void hmap_rebuild(HMap* m) {
+    unsigned cap = !m->cap ? 1024 : m->live * 4 >= m->cap ? m->cap * 2 : m->cap;
+    MapSlot* s = calloc(cap, sizeof *s);
+    if (!s) return;
+    MapSlot* old = m->s;
+    unsigned oldCap = m->cap;
+    m->s = s;
+    m->cap = cap;
+    m->live = m->tombs = 0;
+    for (unsigned i = 0; i < oldCap; i++)
+        if (old[i].key && old[i].key != HMAP_TOMB) hmap_put(m, old[i].key, old[i].a, old[i].b);
+    free(old);
+}
+
+static void hmap_put(HMap* m, uint64_t key, uint64_t a, uint64_t b) {
+    if (!key || key == HMAP_TOMB) return;
+    MapSlot* hit = hmap_find(m, key);
+    if (hit) { hit->a = a; hit->b = b; return; }
+    if ((m->live + m->tombs + 1) * 4 > m->cap * 3) hmap_rebuild(m);
+    if ((m->live + m->tombs + 1) * 4 > m->cap * 3) return;   // out of memory: not tracked
+    for (unsigned i = hmap_slot(m, key); ; i = (i + 1) & (m->cap - 1)) {
+        if (m->s[i].key && m->s[i].key != HMAP_TOMB) continue;
+        if (m->s[i].key == HMAP_TOMB) m->tombs--;
+        m->s[i].key = key;
+        m->s[i].a = a;
+        m->s[i].b = b;
+        m->live++;
+        return;
+    }
+}
+
+static void hmap_del(HMap* m, uint64_t key) {
+    MapSlot* hit = hmap_find(m, key);
+    if (!hit) return;
+    hit->key = HMAP_TOMB;
+    m->live--;
+    m->tombs++;
+}
+
+typedef struct { VkCommandBuffer cb; RdBcRegion r; } BcJob;
+static pthread_mutex_t g_cvmu = PTHREAD_MUTEX_INITIALIZER;
+static HMap g_convImages;   // image -> its BC format
+static HMap g_bufBinds;     // buffer -> memory, offset
+static HMap g_memMaps;      // memory -> pointer, offset it was mapped at
+static HMap g_bufInfo;      // buffer -> usage, size (for the log)
+static HMap g_memTypes;     // memory -> memory type index (for the log)
+static BcJob* g_jobs;
+static unsigned g_jobCount, g_jobCap;
+// Copies from a mapped buffer into one the CPU does not map (vkCmdCopyBuffer), until their command
+// buffer is submitted: blocks relayed that way into a converted image are re-encoded at the source.
+typedef struct { VkCommandBuffer cb; VkBuffer dst; VkDeviceSize dstOff, size; uint8_t* src; } BcRelay;
+static BcRelay* g_relays;
+static unsigned g_relayCount, g_relayCap;
+static unsigned g_convImageCount, g_convNoEncoder, g_convUnmapped, g_convReadbacks, g_convRegions, g_convRelayed;
+static uint64_t g_convBlocks, g_convNanos;
+
+static void bc_track_image(VkImage img, VkFormat bc) {
+    pthread_mutex_lock(&g_cvmu);
+    hmap_put(&g_convImages, (uint64_t)img, (uint64_t)bc, 0);
+    g_convImageCount++;
+    pthread_mutex_unlock(&g_cvmu);
+}
+
+// The BC format a converted image was asked for, 0 if it is not one. g_cvmu held.
+static VkFormat bc_image_format(VkImage img) {
+    MapSlot* hit = hmap_find(&g_convImages, (uint64_t)img);
+    return hit ? (VkFormat)hit->a : (VkFormat)0;
+}
+
+static uint8_t* bc_buffer_ptr(VkBuffer b, VkDeviceSize off) {
+    MapSlot* bind = hmap_find(&g_bufBinds, (uint64_t)b);
+    MapSlot* map = bind ? hmap_find(&g_memMaps, bind->a) : NULL;
+    if (!map || bind->b < map->b) return NULL;
+    return (uint8_t*)(uintptr_t)map->a + (bind->b - map->b) + off;
+}
+
+static void bc_add_job(VkCommandBuffer cb, const RdBcRegion* r) {
+    if (g_jobCount == g_jobCap) {
+        unsigned cap = g_jobCap ? g_jobCap * 2 : 256;
+        BcJob* jobs = realloc(g_jobs, cap * sizeof *jobs);
+        if (!jobs) return;
+        g_jobs = jobs;
+        g_jobCap = cap;
+    }
+    g_jobs[g_jobCount].cb = cb;
+    g_jobs[g_jobCount].r = *r;
+    g_jobCount++;
+}
+
+// One copy region into a converted image. g_cvmu held.
+static void bc_note_region(VkCommandBuffer cb, VkFormat fmt, VkBuffer src, VkDeviceSize bufferOffset, uint32_t rowLength,
+                           uint32_t imageHeight, VkExtent3D extent, uint32_t layers) {
+    uint32_t bytes = (fmt <= VK_FORMAT_BC1_RGBA_SRGB_BLOCK || fmt == VK_FORMAT_BC4_UNORM_BLOCK || fmt == VK_FORMAT_BC4_SNORM_BLOCK) ? 8 : 16;
+    uint32_t rowTexels = rowLength ? rowLength : extent.width, heightTexels = imageHeight ? imageHeight : extent.height;
+    RdBcRegion r;
+    r.bw = (extent.width + 3) / 4;
+    r.bh = (extent.height + 3) / 4;
+    r.rowPitch = (rowTexels + 3) / 4 * bytes;
+    r.slicePitch = (heightTexels + 3) / 4 * r.rowPitch;
+    r.slices = layers * (extent.depth ? extent.depth : 1);
+    r.format = fmt;
+    r.data = bc_buffer_ptr(src, bufferOffset);
+    if (r.data) { bc_add_job(cb, &r); return; }
+    // Not mapped: blocks a copy brought over from a mapped buffer, in a command buffer not submitted
+    // yet, are re-encoded at their source when that one is submitted.
+    VkDeviceSize len = (VkDeviceSize)r.slicePitch * (r.slices - 1) + (VkDeviceSize)r.rowPitch * (r.bh - 1) + (VkDeviceSize)r.bw * bytes;
+    for (unsigned i = g_relayCount; i-- > 0;) {
+        BcRelay* x = &g_relays[i];
+        if (x->dst != src || bufferOffset < x->dstOff || bufferOffset + len > x->dstOff + x->size) continue;
+        r.data = x->src + (bufferOffset - x->dstOff);
+        bc_add_job(x->cb, &r);
+        g_convRelayed++;
+        return;
+    }
+    if (++g_convUnmapped <= 10) {
+        MapSlot* bind = hmap_find(&g_bufBinds, (uint64_t)src);
+        MapSlot* info = hmap_find(&g_bufInfo, (uint64_t)src);
+        MapSlot* type = bind ? hmap_find(&g_memTypes, bind->a) : NULL;
+        MLOG("BC conversion: a copy into a converted texture (%ux%u, format %d) comes from a buffer the CPU has not mapped "
+             "(usage 0x%llx, %llu KB, memory type %lld, %s) and no pending copy filled it: its blocks stay BC",
+             extent.width, extent.height, fmt, info ? (unsigned long long)info->a : 0ULL, info ? (unsigned long long)(info->b >> 10) : 0ULL,
+             type ? (long long)type->a : -1LL, bind ? "bound" : "not seen bound");
+    }
+}
+
+// vkCmdCopyBuffer regions from a mapped buffer into an unmapped one: remembered as relays. g_cvmu held.
+static void bc_note_relay(VkCommandBuffer cb, VkBuffer src, VkBuffer dst, VkDeviceSize srcOff, VkDeviceSize dstOff, VkDeviceSize size) {
+    uint8_t* from = bc_buffer_ptr(src, srcOff);
+    if (!from || bc_buffer_ptr(dst, dstOff)) return;
+    if (g_relayCount == g_relayCap) {
+        unsigned cap = g_relayCap ? g_relayCap * 2 : 256;
+        BcRelay* relays = realloc(g_relays, cap * sizeof *relays);
+        if (!relays) return;
+        g_relays = relays;
+        g_relayCap = cap;
+    }
+    g_relays[g_relayCount++] = (BcRelay){ cb, dst, dstOff, size, from };
+}
+
+static void bc_forget_relays(VkCommandBuffer cb) {   // g_cvmu held
+    for (unsigned i = 0; i < g_relayCount;)
+        if (g_relays[i].cb == cb) g_relays[i] = g_relays[--g_relayCount];
+        else i++;
+}
+
+static void bc_note_copies(VkCommandBuffer cb, VkBuffer src, VkImage dst, uint32_t n, const VkBufferImageCopy* r) {
+    if (!bc_convert()) return;
+    pthread_mutex_lock(&g_cvmu);
+    VkFormat fmt = bc_image_format(dst);
+    if (fmt) for (uint32_t i = 0; i < n; i++)
+        bc_note_region(cb, fmt, src, r[i].bufferOffset, r[i].bufferRowLength, r[i].bufferImageHeight, r[i].imageExtent,
+                       r[i].imageSubresource.layerCount);
+    pthread_mutex_unlock(&g_cvmu);
+}
+
+static void bc_note_copies2(VkCommandBuffer cb, VkBuffer src, VkImage dst, uint32_t n, const VkBufferImageCopy2* r) {
+    if (!bc_convert()) return;
+    pthread_mutex_lock(&g_cvmu);
+    VkFormat fmt = bc_image_format(dst);
+    if (fmt) for (uint32_t i = 0; i < n; i++)
+        bc_note_region(cb, fmt, src, r[i].bufferOffset, r[i].bufferRowLength, r[i].bufferImageHeight, r[i].imageExtent,
+                       r[i].imageSubresource.layerCount);
+    pthread_mutex_unlock(&g_cvmu);
+}
+
+static void bc_note_readback(VkImage src) {
+    if (!bc_convert()) return;
+    pthread_mutex_lock(&g_cvmu);
+    VkFormat fmt = bc_image_format(src);
+    if (fmt && ++g_convReadbacks <= 10)
+        MLOG("BC conversion: READBACK of a converted texture (format %d): the engine gets ETC2/EAC blocks where it expects BC", fmt);
+    pthread_mutex_unlock(&g_cvmu);
+}
+
+static int region_cmp(const void* a, const void* b) {
+    uintptr_t x = (uintptr_t)((const RdBcRegion*)a)->data, y = (uintptr_t)((const RdBcRegion*)b)->data;
+    return x < y ? -1 : x > y;
+}
+
+// Before these command buffers go to the GPU: re-encode the blocks their copies read.
+static void bc_run(const VkCommandBuffer* cbs, uint32_t n) {
+    if (!n || !(__atomic_load_n(&g_jobCount, __ATOMIC_RELAXED) | __atomic_load_n(&g_relayCount, __ATOMIC_RELAXED))) return;
+    pthread_mutex_lock(&g_cvmu);
+    RdBcRegion* todo = malloc((size_t)g_jobCount * sizeof *todo);
+    unsigned count = 0;
+    for (unsigned i = 0; todo && i < g_jobCount;) {
+        int mine = 0;
+        for (uint32_t k = 0; k < n && !mine; k++) mine = g_jobs[i].cb == cbs[k];
+        if (!mine) { i++; continue; }
+        todo[count++] = g_jobs[i].r;
+        g_jobs[i] = g_jobs[--g_jobCount];
+    }
+    for (uint32_t k = 0; k < n && g_relayCount; k++) bc_forget_relays(cbs[k]);   // their data is on its way to the GPU
+    pthread_mutex_unlock(&g_cvmu);
+    // The same blocks copied twice (one upload into two textures) must be re-encoded once: a second
+    // pass would read ETC2 as BC.
+    if (count > 1) {
+        qsort(todo, count, sizeof *todo, region_cmp);
+        unsigned kept = 1;
+        for (unsigned i = 1; i < count; i++)
+            if (todo[i].data != todo[kept - 1].data) todo[kept++] = todo[i];
+        count = kept;
+    }
+    if (count) {
+        struct timespec t0, t1;
+        clock_gettime(CLOCK_MONOTONIC, &t0);
+        uint64_t blocks = rd_bc_transcode(todo, count);
+        clock_gettime(CLOCK_MONOTONIC, &t1);
+        pthread_mutex_lock(&g_cvmu);
+        g_convRegions += count;
+        g_convBlocks += blocks;
+        g_convNanos += (uint64_t)(t1.tv_sec - t0.tv_sec) * 1000000000ULL + (uint64_t)(t1.tv_nsec - t0.tv_nsec);
+        pthread_mutex_unlock(&g_cvmu);
+    }
+    free(todo);
+}
+
+// A command buffer begun again, reset or freed: what it noted is gone with its old recording.
+static void bc_forget(VkCommandBuffer cb) {
+    if (!(__atomic_load_n(&g_jobCount, __ATOMIC_RELAXED) | __atomic_load_n(&g_relayCount, __ATOMIC_RELAXED))) return;
+    pthread_mutex_lock(&g_cvmu);
+    for (unsigned i = 0; i < g_jobCount;)
+        if (g_jobs[i].cb == cb) g_jobs[i] = g_jobs[--g_jobCount];
+        else i++;
+    bc_forget_relays(cb);
+    pthread_mutex_unlock(&g_cvmu);
+}
+
+static void bc_summary(void) {
+    if (!g_convImageCount) return;
+    pthread_mutex_lock(&g_cvmu);
+    MLOG("BC conversion: %u textures created as ETC2/EAC, %u regions / %llu MB re-encoded in %llu ms (%u relayed through a "
+         "GPU buffer); %u from unmapped buffers (left BC), %u readbacks, %u without an encoder", g_convImageCount, g_convRegions,
+         (unsigned long long)(g_convBlocks * 16 >> 20), (unsigned long long)(g_convNanos / 1000000), g_convRelayed, g_convUnmapped,
+         g_convReadbacks, g_convNoEncoder);
+    pthread_mutex_unlock(&g_cvmu);
+}
+
+static PFN_vkBindBufferMemory g_bindBuf;
+static PFN_vkBindBufferMemory2 g_bindBuf2;
+static PFN_vkDestroyBuffer g_destroyBuf;
+static PFN_vkUnmapMemory g_unmap;
+static PFN_vkBeginCommandBuffer g_beginCb;
+static PFN_vkResetCommandBuffer g_resetCb;
+
+static VkResult VKAPI_CALL bindbuf_wrap(VkDevice d, VkBuffer b, VkDeviceMemory m, VkDeviceSize off) {
+    VkResult r = g_bindBuf(d, b, m, off);
+    if (r == VK_SUCCESS && bc_convert()) {
+        pthread_mutex_lock(&g_cvmu);
+        hmap_put(&g_bufBinds, (uint64_t)b, (uint64_t)m, off);
+        pthread_mutex_unlock(&g_cvmu);
+    }
+    return r;
+}
+
+static VkResult VKAPI_CALL bindbuf2_wrap(VkDevice d, uint32_t n, const VkBindBufferMemoryInfo* infos) {
+    VkResult r = g_bindBuf2(d, n, infos);
+    if (r == VK_SUCCESS && bc_convert()) {
+        pthread_mutex_lock(&g_cvmu);
+        for (uint32_t i = 0; i < n; i++) hmap_put(&g_bufBinds, (uint64_t)infos[i].buffer, (uint64_t)infos[i].memory, infos[i].memoryOffset);
+        pthread_mutex_unlock(&g_cvmu);
+    }
+    return r;
+}
+
+static void VKAPI_CALL destroybuf_wrap(VkDevice d, VkBuffer b, const VkAllocationCallbacks* a) {
+    if (b && (g_bufBinds.live || g_bufInfo.live)) {
+        pthread_mutex_lock(&g_cvmu);
+        hmap_del(&g_bufBinds, (uint64_t)b);
+        hmap_del(&g_bufInfo, (uint64_t)b);
+        pthread_mutex_unlock(&g_cvmu);
+    }
+    g_destroyBuf(d, b, a);
+}
+
+// Unmapped or freed (freeing a mapped memory object unmaps it).
+static void bc_forget_mapping(VkDeviceMemory m) {
+    if (!g_memMaps.live && !g_memTypes.live) return;
+    pthread_mutex_lock(&g_cvmu);
+    hmap_del(&g_memMaps, (uint64_t)m);
+    pthread_mutex_unlock(&g_cvmu);
+}
+
+static void bc_note_memory(VkDeviceMemory m, uint32_t type) {
+    if (!bc_convert()) return;
+    pthread_mutex_lock(&g_cvmu);
+    hmap_put(&g_memTypes, (uint64_t)m, type, 0);
+    pthread_mutex_unlock(&g_cvmu);
+}
+
+static void bc_note_buffer(VkBuffer b, VkBufferUsageFlags usage, VkDeviceSize size) {
+    if (!bc_convert()) return;
+    pthread_mutex_lock(&g_cvmu);
+    hmap_put(&g_bufInfo, (uint64_t)b, usage, size);
+    pthread_mutex_unlock(&g_cvmu);
+}
+
+static void VKAPI_CALL unmap_wrap(VkDevice d, VkDeviceMemory m) {
+    if (bc_convert()) return;   // kept until the memory is freed (see map_wrap)
+    bc_forget_mapping(m);
+    g_unmap(d, m);
+}
+
+static PFN_vkCmdCopyBuffer g_copyBuf;
+static PFN_vkCmdCopyBuffer2 g_copyBuf2;
+
+static void VKAPI_CALL copybuf_wrap(VkCommandBuffer cb, VkBuffer src, VkBuffer dst, uint32_t n, const VkBufferCopy* regions) {
+    if (bc_convert() && g_convImageCount) {
+        pthread_mutex_lock(&g_cvmu);
+        for (uint32_t i = 0; i < n; i++) bc_note_relay(cb, src, dst, regions[i].srcOffset, regions[i].dstOffset, regions[i].size);
+        pthread_mutex_unlock(&g_cvmu);
+    }
+    g_copyBuf(cb, src, dst, n, regions);
+}
+
+static void VKAPI_CALL copybuf2_wrap(VkCommandBuffer cb, const VkCopyBufferInfo2* info) {
+    if (bc_convert() && g_convImageCount) {
+        pthread_mutex_lock(&g_cvmu);
+        for (uint32_t i = 0; i < info->regionCount; i++)
+            bc_note_relay(cb, info->srcBuffer, info->dstBuffer, info->pRegions[i].srcOffset, info->pRegions[i].dstOffset, info->pRegions[i].size);
+        pthread_mutex_unlock(&g_cvmu);
+    }
+    g_copyBuf2(cb, info);
+}
+
+static VkResult VKAPI_CALL begincb_wrap(VkCommandBuffer cb, const VkCommandBufferBeginInfo* info) {
+    bc_forget(cb);
+    return g_beginCb(cb, info);
+}
+
+static VkResult VKAPI_CALL resetcb_wrap(VkCommandBuffer cb, VkCommandBufferResetFlags f) {
+    bc_forget(cb);
+    return g_resetCb(cb, f);
 }
 
 // ---- texture shrink --------------------------------------------------------------------------------
@@ -542,13 +976,23 @@ static const char* imageRoleName(uint32_t usage) {
 
 static VkResult VKAPI_CALL createimage_wrap(VkDevice d, const VkImageCreateInfo* info, const VkAllocationCallbacks* a, VkImage* out) {
     shrink_config();
-    if (no_bc() && is_bc(info->format)) {
-        unsigned n = __atomic_add_fetch(&g_bcImagesRefused, 1, __ATOMIC_RELAXED);
-        if (n <= 10) MLOG("NO-BC MODE: refusing a BC image %ux%u format %d (the game asked despite the queries) #%u",
-                          info->extent.width, info->extent.height, info->format, n);
-        return VK_ERROR_FORMAT_NOT_SUPPORTED;
+    VkImageCreateInfo copy = *info;
+    VkFormat sub = is_bc(info->format) && bc_convert() ? bc_substitute(info->format) : VK_FORMAT_UNDEFINED;
+    if (is_bc(info->format) && bc_convert() && !sub && __atomic_add_fetch(&g_convNoEncoder, 1, __ATOMIC_RELAXED) <= 10)
+        MLOG("BC conversion: no encoder for format %d (%ux%u): created as asked", info->format, info->extent.width, info->extent.height);
+    if (sub) {
+        copy.format = sub;
+        // A mutable image's list of view formats: its BC entries become their substitutes too (the
+        // caller's own struct; the driver only reads it).
+        for (VkBaseOutStructure* x = (VkBaseOutStructure*)info->pNext; x; x = x->pNext) {
+            if (x->sType != VK_STRUCTURE_TYPE_IMAGE_FORMAT_LIST_CREATE_INFO) continue;
+            VkImageFormatListCreateInfo* list = (VkImageFormatListCreateInfo*)x;
+            for (uint32_t k = 0; k < list->viewFormatCount; k++) {
+                VkFormat v = bc_substitute(list->pViewFormats[k]);
+                if (v) ((VkFormat*)list->pViewFormats)[k] = v;
+            }
+        }
     }
-    VkImageCreateInfo copy;
     int shrink = shrinkable(info);
     if (shrink) {
         pthread_mutex_lock(&g_smu);
@@ -557,12 +1001,12 @@ static VkResult VKAPI_CALL createimage_wrap(VkDevice d, const VkImageCreateInfo*
         pthread_mutex_unlock(&g_smu);
     }
     if (shrink) {
-        copy = *info;
         copy.extent.width = info->extent.width > 1 ? info->extent.width / 2 : 1;
         copy.extent.height = info->extent.height > 1 ? info->extent.height / 2 : 1;
         copy.mipLevels = info->mipLevels - 1;
     }
-    VkResult r = g_createImage(d, shrink ? &copy : info, a, out);
+    VkResult r = g_createImage(d, shrink || sub ? &copy : info, a, out);
+    if (sub && r == VK_SUCCESS) bc_track_image(*out, info->format);
     if (shrink) {
         pthread_mutex_lock(&g_smu);
         g_shrunkReserved--;
@@ -626,15 +1070,22 @@ static void VKAPI_CALL destroyimage_wrap(VkDevice d, VkImage img, const VkAlloca
         if (i >= 0) shrunk_remove(i);
         pthread_mutex_unlock(&g_smu);
     }
+    if (img && g_convImages.live) {
+        pthread_mutex_lock(&g_cvmu);
+        hmap_del(&g_convImages, (uint64_t)img);
+        pthread_mutex_unlock(&g_cvmu);
+    }
     g_destroyImage(d, img, a);
 }
 
 static VkResult VKAPI_CALL createview_wrap(VkDevice d, const VkImageViewCreateInfo* info, const VkAllocationCallbacks* a, VkImageView* out) {
+    VkImageViewCreateInfo copy = *info;
+    VkFormat sub = is_bc(info->format) && bc_convert() ? bc_substitute(info->format) : VK_FORMAT_UNDEFINED;
+    if (sub) copy.format = sub;
     if (g_shrunkUsed) {
         pthread_mutex_lock(&g_smu);
         int i = shrunk_index(info->image);
         if (i >= 0) {
-            VkImageViewCreateInfo copy = *info;
             VkImageSubresourceRange* r = &copy.subresourceRange;
             if (r->baseMipLevel > 0) r->baseMipLevel--;
             else if (r->levelCount != VK_REMAINING_MIP_LEVELS && r->levelCount > 1) r->levelCount--;   // a view of level 0 alone stays one level: the new level 0
@@ -645,7 +1096,7 @@ static VkResult VKAPI_CALL createview_wrap(VkDevice d, const VkImageViewCreateIn
         }
         pthread_mutex_unlock(&g_smu);
     }
-    return g_createView(d, info, a, out);
+    return g_createView(d, sub ? &copy : info, a, out);
 }
 
 // Copies: regions of old level n -> new level n-1, same offsets and extent; level 0 regions dropped.
@@ -665,11 +1116,12 @@ static void VKAPI_CALL copyb2i_wrap(VkCommandBuffer cb, VkBuffer src, VkImage ds
                 kept[k].imageSubresource.mipLevel--;
                 k++;
             }
-            if (k) g_copyB2I(cb, src, dst, layout, k, kept);
+            if (k) { bc_note_copies(cb, src, dst, k, kept); g_copyB2I(cb, src, dst, layout, k, kept); }
             if (kept != stackKept) free(kept);
             return;
         }
     }
+    bc_note_copies(cb, src, dst, n, regions);
     g_copyB2I(cb, src, dst, layout, n, regions);
 }
 
@@ -724,6 +1176,7 @@ static void VKAPI_CALL blitimage_wrap(VkCommandBuffer cb, VkImage src, VkImageLa
 }
 
 static void VKAPI_CALL copyi2b_wrap(VkCommandBuffer cb, VkImage src, VkImageLayout sl, VkBuffer dst, uint32_t n, const VkBufferImageCopy* regions) {
+    bc_note_readback(src);
     if (g_shrunkUsed && n > 0) {
         pthread_mutex_lock(&g_smu);
         int i = shrunk_index(src);
@@ -828,11 +1281,15 @@ static void VKAPI_CALL copyb2i2_wrap(VkCommandBuffer cb, const VkCopyBufferToIma
                 kept[k].imageSubresource.mipLevel--;
                 k++;
             }
-            if (k) { VkCopyBufferToImageInfo2 copy = *info; copy.regionCount = k; copy.pRegions = kept; g_copyB2I2(cb, &copy); }
+            if (k) {
+                bc_note_copies2(cb, info->srcBuffer, info->dstImage, k, kept);
+                VkCopyBufferToImageInfo2 copy = *info; copy.regionCount = k; copy.pRegions = kept; g_copyB2I2(cb, &copy);
+            }
             if (kept != stackKept) free(kept);
             return;
         }
     }
+    bc_note_copies2(cb, info->srcBuffer, info->dstImage, info->regionCount, info->pRegions);
     g_copyB2I2(cb, info);
 }
 
@@ -891,6 +1348,7 @@ static void VKAPI_CALL blitimage2_wrap(VkCommandBuffer cb, const VkBlitImageInfo
 }
 
 static void VKAPI_CALL copyi2b2_wrap(VkCommandBuffer cb, const VkCopyImageToBufferInfo2* info) {
+    bc_note_readback(info->srcImage);
     uint32_t n = info->regionCount;
     if (g_shrunkUsed && n > 0) {
         pthread_mutex_lock(&g_smu);
@@ -966,6 +1424,7 @@ static void ring_dump(const char* why) {
 
 static VkResult VKAPI_CALL submit_wrap(VkQueue q, uint32_t n, const VkSubmitInfo* infos, VkFence fence) {
     __atomic_add_fetch(&g_submits, 1, __ATOMIC_RELAXED);
+    for (uint32_t i = 0; i < n; i++) bc_run(infos[i].pCommandBuffers, infos[i].commandBufferCount);
     VkResult r = g_submit(q, n, infos, fence);
     if (r != VK_SUCCESS) {
         uint32_t cbs = 0;
@@ -979,6 +1438,8 @@ static VkResult VKAPI_CALL submit_wrap(VkQueue q, uint32_t n, const VkSubmitInfo
 
 static VkResult VKAPI_CALL submit2_wrap(VkQueue q, uint32_t n, const VkSubmitInfo2* infos, VkFence fence) {
     __atomic_add_fetch(&g_submits, 1, __ATOMIC_RELAXED);
+    for (uint32_t i = 0; i < n; i++)
+        for (uint32_t k = 0; k < infos[i].commandBufferInfoCount; k++) bc_run(&infos[i].pCommandBufferInfos[k].commandBuffer, 1);
     VkResult r = g_submit2(q, n, infos, fence);
     if (r != VK_SUCCESS) {
         uint32_t cbs = 0;
@@ -1005,6 +1466,7 @@ static VkResult VKAPI_CALL waitidle_wrap(VkDevice d) {
 
 static VkResult VKAPI_CALL createbuffer_wrap(VkDevice d, const VkBufferCreateInfo* info, const VkAllocationCallbacks* a, VkBuffer* out) {
     VkResult r = g_createBuffer(d, info, a, out);
+    if (r == VK_SUCCESS) bc_note_buffer(*out, info->usage, info->size);
     if (info->size >= (32u << 20)) ring_add("buffer %u MB usage 0x%x -> %d", mb(info->size), (unsigned)info->usage, r);
     return r;
 }
@@ -1097,8 +1559,31 @@ static VkResult VKAPI_CALL shadermodule_wrap(VkDevice d, const VkShaderModuleCre
     return r;
 }
 
+// While converting BC, a memory object stays mapped from its first vkMapMemory until it is freed
+// (unmap_wrap leaves it), mapped whole: the engine writes an upload buffer, unmaps it at once and
+// only later submits the copy that reads it, by when re-encoding its blocks needs the mapping (122
+// copies "from a buffer the CPU has not mapped", memory type 6, 2026-10-15). A later vkMapMemory of
+// the same memory gets the same mapping at the offset asked for.
 static VkResult VKAPI_CALL map_wrap(VkDevice d, VkDeviceMemory m, VkDeviceSize off, VkDeviceSize size, VkMemoryMapFlags f, void** data) {
-    VkResult r = g_map(d, m, off, size, f, data);
+    VkResult r;
+    if (bc_convert()) {
+        pthread_mutex_lock(&g_cvmu);
+        MapSlot* kept = hmap_find(&g_memMaps, (uint64_t)m);
+        void* base = kept ? (void*)(uintptr_t)kept->a : NULL;
+        pthread_mutex_unlock(&g_cvmu);
+        r = VK_SUCCESS;
+        if (!base) {
+            r = g_map(d, m, 0, VK_WHOLE_SIZE, f, &base);
+            if (r == VK_SUCCESS) {
+                pthread_mutex_lock(&g_cvmu);
+                hmap_put(&g_memMaps, (uint64_t)m, (uint64_t)(uintptr_t)base, 0);
+                pthread_mutex_unlock(&g_cvmu);
+            }
+        }
+        if (r == VK_SUCCESS) *data = (uint8_t*)base + off;
+    } else {
+        r = g_map(d, m, off, size, f, data);
+    }
     if (r == VK_SUCCESS) {
         pthread_mutex_lock(&g_mu);
         g_maps++;
@@ -1159,6 +1644,7 @@ static PFN_vkVoidFunction VKAPI_CALL gipa_wrap(VkInstance instance, const char* 
     if (!strcmp(name, "vkGetPhysicalDeviceFormatProperties2") || !strcmp(name, "vkGetPhysicalDeviceFormatProperties2KHR")) { g_getFormatProps2 = (PFN_vkGetPhysicalDeviceFormatProperties2)f; return (PFN_vkVoidFunction)getformatprops2_wrap; }
     if (!strcmp(name, "vkGetPhysicalDeviceImageFormatProperties")) { g_getImageFormatProps = (PFN_vkGetPhysicalDeviceImageFormatProperties)f; return (PFN_vkVoidFunction)getimageformatprops_wrap; }
     if (!strcmp(name, "vkGetPhysicalDeviceImageFormatProperties2") || !strcmp(name, "vkGetPhysicalDeviceImageFormatProperties2KHR")) { g_getImageFormatProps2 = (PFN_vkGetPhysicalDeviceImageFormatProperties2)f; return (PFN_vkVoidFunction)getimageformatprops2_wrap; }
+    if (!strcmp(name, "vkCreateDevice")) { g_createDevice = (PFN_vkCreateDevice)f; return (PFN_vkVoidFunction)createdevice_wrap; }
     return hook(name, f);
 }
 
@@ -1209,6 +1695,14 @@ static PFN_vkVoidFunction hook(const char* name, PFN_vkVoidFunction f) {
     if (!strcmp(name, "vkWaitForFences")) { g_waitFences = (PFN_vkWaitForFences)f; return (PFN_vkVoidFunction)waitfences_wrap; }
     if (!strcmp(name, "vkDeviceWaitIdle")) { g_waitIdle = (PFN_vkDeviceWaitIdle)f; return (PFN_vkVoidFunction)waitidle_wrap; }
     if (!strcmp(name, "vkCreateBuffer")) { g_createBuffer = (PFN_vkCreateBuffer)f; return (PFN_vkVoidFunction)createbuffer_wrap; }
+    if (!strcmp(name, "vkCmdCopyBuffer")) { g_copyBuf = (PFN_vkCmdCopyBuffer)f; return (PFN_vkVoidFunction)copybuf_wrap; }
+    if (!strcmp(name, "vkCmdCopyBuffer2") || !strcmp(name, "vkCmdCopyBuffer2KHR")) { g_copyBuf2 = (PFN_vkCmdCopyBuffer2)f; return (PFN_vkVoidFunction)copybuf2_wrap; }
+    if (!strcmp(name, "vkBindBufferMemory")) { g_bindBuf = (PFN_vkBindBufferMemory)f; return (PFN_vkVoidFunction)bindbuf_wrap; }
+    if (!strcmp(name, "vkBindBufferMemory2") || !strcmp(name, "vkBindBufferMemory2KHR")) { g_bindBuf2 = (PFN_vkBindBufferMemory2)f; return (PFN_vkVoidFunction)bindbuf2_wrap; }
+    if (!strcmp(name, "vkDestroyBuffer")) { g_destroyBuf = (PFN_vkDestroyBuffer)f; return (PFN_vkVoidFunction)destroybuf_wrap; }
+    if (!strcmp(name, "vkUnmapMemory")) { g_unmap = (PFN_vkUnmapMemory)f; return (PFN_vkVoidFunction)unmap_wrap; }
+    if (!strcmp(name, "vkBeginCommandBuffer")) { g_beginCb = (PFN_vkBeginCommandBuffer)f; return (PFN_vkVoidFunction)begincb_wrap; }
+    if (!strcmp(name, "vkResetCommandBuffer")) { g_resetCb = (PFN_vkResetCommandBuffer)f; return (PFN_vkVoidFunction)resetcb_wrap; }
     if (!strcmp(name, "vkCreateFramebuffer")) { g_createFb = (PFN_vkCreateFramebuffer)f; return (PFN_vkVoidFunction)createfb_wrap; }
     if (!strcmp(name, "vkCmdDispatch")) { g_dispatch = (PFN_vkCmdDispatch)f; return (PFN_vkVoidFunction)dispatch_wrap; }
     if (!strcmp(name, "vkCmdDraw")) { g_draw = (PFN_vkCmdDraw)f; return (PFN_vkVoidFunction)draw_wrap; }

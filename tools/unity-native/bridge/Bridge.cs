@@ -202,6 +202,7 @@ namespace RimDroid
     static class ScrollPatch
     {
         static Assembly patchedFor;   // the game copy the patches are on
+        static bool screenshotsPatched;
 
         internal static void TryInstall(Assembly game, MethodInfo original)
         {
@@ -305,6 +306,31 @@ namespace RimDroid
                     catch (Exception e)
                     {
                         Debug.LogWarning("RIMDROID bridge: texture cache patch unavailable (" + e.GetBaseException().Message + ")");
+                    }
+                    // Screenshots (ScreenshotPatch): a prefix on Unity's CaptureScreenshot overloads, once;
+                    // they do not change with a reloaded game copy. The innermost one is native code.
+                    if (!screenshotsPatched)
+                    {
+                        screenshotsPatched = true;
+                        try
+                        {
+                            object shotPrefix = Activator.CreateInstance(methodType, new object[] { typeof(ScreenshotPatch).GetMethod("BeforeCaptureScreenshot") });
+                            int patched = 0;
+                            foreach (MethodInfo capture in typeof(ScreenCapture).GetMethods(BindingFlags.Public | BindingFlags.Static))
+                            {
+                                if (capture.Name != "CaptureScreenshot" || capture.GetMethodBody() == null) continue;
+                                object[] shotArgs = new object[patch.GetParameters().Length];
+                                shotArgs[0] = capture;
+                                shotArgs[1] = shotPrefix;
+                                patch.Invoke(harmony, shotArgs);
+                                patched++;
+                            }
+                            Debug.Log("RIMDROID bridge: screenshots saved where the game asks (" + patched + " CaptureScreenshot overloads)");
+                        }
+                        catch (Exception e)
+                        {
+                            Debug.LogWarning("RIMDROID bridge: screenshot patch unavailable (" + e.GetBaseException().Message + ")");
+                        }
                     }
                 }
                 catch (Exception e)

@@ -179,8 +179,18 @@ set_target_properties(steam_api64_stub PROPERTIES OUTPUT_NAME "steam_api64")
 add_library(slang_stub SHARED slang_stub/slang_stub.c)
 set_target_properties(slang_stub PROPERTIES OUTPUT_NAME "slang")
 
-add_library(vulkan_wrapper SHARED vulkan_wrapper/vulkan_wrapper.c)
+# With BC re-encoded to ETC2/EAC for GPUs without BC (bctranscode.cpp: bcdec + etcpak, the same
+# encoders as librimdroidtex, compiled in here: that library links the system libvulkan, this one
+# is libvulkan.so). Always -O2: the block encoder runs while the game loads.
+add_library(vulkan_wrapper SHARED
+    vulkan_wrapper/vulkan_wrapper.c
+    vulkan_wrapper/bctranscode.cpp
+    texcache/etcpak/ProcessRGB.cpp
+    texcache/etcpak/Tables.cpp
+    texcache/etcpak/Dither.cpp
+)
 set_target_properties(vulkan_wrapper PROPERTIES OUTPUT_NAME "vulkan")
+target_compile_options(vulkan_wrapper PRIVATE -O2 $<$<COMPILE_LANGUAGE:CXX>:-fno-exceptions -fno-rtti>)
 target_link_libraries(vulkan_wrapper glfw dl log)   # glfw: rd_frame_tick, the FPS counter
 
 # librdglibc.so — glibc's ABI for the libc calls where bionic differs (__errno_location, sysconf,

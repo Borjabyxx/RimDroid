@@ -143,6 +143,47 @@ final class DotnetPatcher {
         return o.toByteArray();
     }
 
+    /**
+     * The engine's GPU texture encoder on or off. It writes BC blocks with compute shaders, which on a
+     * GPU without BC (Mali, PowerVR) libvulkan.so cannot re-encode: the CPU never sees them (see
+     * vulkan_wrapper.c, "BC on GPUs without it"). Off, TextureBlockEncoder.IsConfigured and
+     * CanEncodeBc7Fast answer false ({@code ldc.i4.0; ret} at the start of each getter), and every
+     * texture is encoded on the CPU, the way the engine already goes when a GPU batch fails. Its
+     * EncodeLocked, the GPU encode behind Texture2D.CompressInPlace and the fast BC7 path, does not ask
+     * those (13 textures still came from the GPU on a test, 2026-10-15): it answers null
+     * ({@code ldnull; ret}), which its callers take as "not encoded" (the fast BC7 path then encodes on
+     * the CPU, an in-place compression leaves the texture uncompressed). On again, the first bytes come
+     * back from Waylith.dll.rdorig (the platform patches leave these methods alone, so the bytes there
+     * are the originals).
+     */
+    static void gpuTextureEncoder(File gameDir, boolean on) {
+        File f = new File(gameDir, "Waylith.dll"), orig = new File(gameDir, "Waylith.dll.rdorig");
+        if (!f.isFile()) return;
+        try {
+            byte[] b = Files.readAllBytes(f.toPath());
+            byte[] o = orig.isFile() ? Files.readAllBytes(orig.toPath()) : null;
+            Meta m = new Meta(b);
+            int changed = 0;
+            String[] methods = { "get_IsConfigured", "get_CanEncodeBc7Fast", "EncodeLocked" };
+            byte[][] off = { { 0x16, 0x2a }, { 0x16, 0x2a }, { 0x14, 0x2a } };   // ldc.i4.0 / ldnull; ret
+            for (int i = 0; i < methods.length; i++) {
+                int code = m.methodCode("Waylith.Rendering", "TextureBlockEncoder", methods[i]);
+                if (code < 0) { Log.w(TAG, "Waylith.dll: TextureBlockEncoder." + methods[i] + " not found"); continue; }
+                byte[] want = on ? (o != null && o.length == b.length ? new byte[] { o[code], o[code + 1] } : null) : off[i];
+                if (want == null || (b[code] == want[0] && b[code + 1] == want[1])) continue;
+                b[code] = want[0];
+                b[code + 1] = want[1];
+                changed++;
+            }
+            if (changed == 0) return;
+            if (!orig.exists()) Files.copy(f.toPath(), orig.toPath());
+            Files.write(f.toPath(), b);
+            Log.i(TAG, "Waylith.dll: GPU texture encoder " + (on ? "back on" : "off (textures encoded on the CPU)"));
+        } catch (Exception e) {
+            Log.w(TAG, "cannot switch the GPU texture encoder in Waylith.dll: " + e);
+        }
+    }
+
     /** The game's own logic; mods reach into it (see {@link #laxGameAssembly}). */
     static final String GAME_ASSEMBLY = "Assembly-CSharp.dll";
 
@@ -307,11 +348,15 @@ final class DotnetPatcher {
         final int[] rows = new int[64];
         int memberRefs, memberRefStart, typeRefStart, typeRefSize, memberRefSize, memberRefParent, resolutionScope;
         int fieldStart, fieldSize;
+        int typeDefStart, typeDefSize, methodStart, methodSize, typeDefOrRefSize;
+        int pe, sections, optSize;
 
         Meta(byte[] b) {
             this.b = b;
-            int pe = u32(0x3c);
-            int sections = u16(pe + 6), optSize = u16(pe + 20), opt = pe + 24;
+            pe = u32(0x3c);
+            sections = u16(pe + 6);
+            optSize = u16(pe + 20);
+            int opt = pe + 24;
             boolean pe32plus = u16(opt) == 0x20b;
             int cliRva = u32(opt + (pe32plus ? 112 : 96) + 14 * 8);
             int cli = rva(cliRva, pe, sections, optSize);
@@ -337,6 +382,7 @@ final class DotnetPatcher {
             tablesRow0 = p;
             resolutionScope = coded(new int[] { 0x00, 0x1a, 0x23, 0x01 }, 2);
             int typeDefOrRef = coded(new int[] { 0x02, 0x01, 0x1b }, 2);
+            typeDefOrRefSize = typeDefOrRef;
             memberRefParent = coded(new int[] { 0x02, 0x01, 0x1a, 0x06, 0x1b }, 3);
             int[] size = new int[0x0b];
             size[0x00] = 2 + si + gi * 3;
@@ -353,14 +399,38 @@ final class DotnetPatcher {
             int q = tablesRow0;
             for (int t = 0; t < 0x0a; t++) {
                 if (t == 0x01) typeRefStart = q;
+                else if (t == 0x02) typeDefStart = q;
                 else if (t == 0x04) fieldStart = q;
+                else if (t == 0x06) methodStart = q;
                 q += rows[t] * size[t];
             }
             memberRefStart = q;
             fieldSize = size[0x04];
+            typeDefSize = size[0x02];
+            methodSize = size[0x06];
             typeRefSize = size[0x01];
             memberRefSize = size[0x0a];
             memberRefs = rows[0x0a];
+        }
+
+        /** File offset of the IL code of {@code ns.type::name} (the first such method), or -1. */
+        int methodCode(String ns, String type, String name) {
+            int typeDefs = rows[0x02], methods = rows[0x06];
+            for (int t = 1; t <= typeDefs; t++) {
+                int o = typeDefStart + (t - 1) * typeDefSize;
+                if (!string(idx(o + 4, si)).equals(type) || !string(idx(o + 4 + si, si)).equals(ns)) continue;
+                int listAt = 4 + si * 2 + typeDefOrRefSize + simple(0x04);
+                int first = idx(o + listAt, simple(0x06));
+                int last = t < typeDefs ? idx(o + typeDefSize + listAt, simple(0x06)) : methods + 1;
+                for (int mr = first; mr < last && mr <= methods; mr++) {
+                    int mo = methodStart + (mr - 1) * methodSize;
+                    if (!string(idx(mo + 8, si)).equals(name)) continue;
+                    int body = rva(u32(mo), pe, sections, optSize);
+                    int h = b[body] & 0xff;
+                    return (h & 3) == 2 ? body + 1 : body + ((b[body + 1] & 0xff) >> 4) * 4;   // tiny or fat header
+                }
+            }
+            return -1;
         }
 
         String memberRefName(int row) {

@@ -35,6 +35,19 @@ public final class DotnetEngine {
 
     private DotnetEngine() {}
 
+    /**
+     * The textures go through BC -> ETC2/EAC re-encoding (libvulkan.so, "BC on GPUs without it"): on
+     * GPUs without BC textures (Mali and Immortalis, PowerVR), or for a test on any phone with the file
+     * rd_no_bc in the game folder. The engine's GPU texture encoder is turned off with it.
+     */
+    public static boolean bcConversion(GameInstance gi) {
+        if (new File(gi.getGamePath(), "rd_no_bc").isFile()) return true;
+        String renderer = com.rimdroid.GpuInfo.query().renderer;
+        if (renderer == null) return false;
+        String r = renderer.toLowerCase(Locale.ROOT);
+        return r.contains("mali") || r.contains("immortalis") || r.contains("powervr");
+    }
+
     /** The instance holds RimWorld 1.7 (Waylith): RimWorld.dll + its runtimeconfig, no Unity data. */
     public static boolean isWaylith(GameInstance gi) {
         File root = new File(gi.getGamePath());
@@ -118,6 +131,7 @@ public final class DotnetEngine {
         int gameCount = 0;
         retargetX64Assemblies(game);
         DotnetPatcher.patchPlatformChecks(game);
+        DotnetPatcher.gpuTextureEncoder(game, !bcConversion(gi));
         DotnetPatcher.laxGameAssembly(game);
         patchMods(game);
         File[] gameFiles = game.listFiles();
