@@ -105,10 +105,13 @@ public class ClrActivity extends Activity {
             if (e.getActionMasked() == android.view.MotionEvent.ACTION_DOWN && logStrip != null && e.getX() < 60 && e.getY() < 60)
                 logStrip.setVisibility(logStrip.getVisibility() == android.view.View.VISIBLE
                         ? android.view.View.GONE : android.view.View.VISIBLE);
+            if (touch.onMouse(e)) return true;
             pinch.onTouchEvent(e);
             touch.onTouch(e);
             return true;
         });
+        // A mouse that moves with no button down and its wheel come as generic (hover/scroll) events.
+        surface.setOnGenericMotionListener((v, e) -> touch.onMouse(e));
         text = new TextView(this);
         text.setTypeface(Typeface.MONOSPACE);
         text.setTextSize(9);
@@ -421,6 +424,51 @@ public class ClrActivity extends Activity {
                     pending = false; pressed = false; gesture = false; rightClicked = false;
                     break;
             }
+        }
+
+        private int mouseButtons;   // MotionEvent.BUTTON_* the game was told are down
+
+        /**
+         * A physical mouse: the pointer follows it with no button down, the wheel zooms, and its
+         * buttons are the game's buttons as they are, with none of the finger gestures (long press,
+         * pinch). Only 1.6 had this; on 1.7 a mouse did nothing (Mali tester, 2026-10-16).
+         * Returns false for anything that is not a mouse.
+         */
+        boolean onMouse(android.view.MotionEvent e) {
+            if (!e.isFromSource(android.view.InputDevice.SOURCE_MOUSE)
+                    || e.getToolType(0) != android.view.MotionEvent.TOOL_TYPE_MOUSE) return false;
+            float x = e.getX(), y = e.getY();
+            switch (e.getActionMasked()) {
+                case android.view.MotionEvent.ACTION_SCROLL:
+                    pointerTo(x, y);
+                    float v = e.getAxisValue(android.view.MotionEvent.AXIS_VSCROLL);
+                    float h = e.getAxisValue(android.view.MotionEvent.AXIS_HSCROLL);
+                    if (v != 0 || h != 0) glfwScroll(h, v);
+                    return true;
+                case android.view.MotionEvent.ACTION_HOVER_ENTER:
+                case android.view.MotionEvent.ACTION_HOVER_MOVE:
+                case android.view.MotionEvent.ACTION_MOVE:
+                    pointerTo(x, y);
+                    break;
+                case android.view.MotionEvent.ACTION_HOVER_EXIT:
+                    return true;
+            }
+            // Buttons from the state, not the action: press and release events differ by device.
+            int now = e.getButtonState();
+            if (e.getActionMasked() == android.view.MotionEvent.ACTION_UP
+                    || e.getActionMasked() == android.view.MotionEvent.ACTION_CANCEL) now = 0;
+            mouseButton(now, android.view.MotionEvent.BUTTON_PRIMARY, 0, x, y);
+            mouseButton(now, android.view.MotionEvent.BUTTON_SECONDARY, 1, x, y);
+            mouseButton(now, android.view.MotionEvent.BUTTON_TERTIARY, 2, x, y);
+            return true;
+        }
+
+        private void mouseButton(int now, int mask, int button, float x, float y) {
+            boolean down = (now & mask) != 0;
+            if (down == ((mouseButtons & mask) != 0)) return;
+            mouseButtons = down ? mouseButtons | mask : mouseButtons & ~mask;
+            pointerTo(x, y);
+            glfwMouse(button, down ? 1 : 0, gx(x), gy(y));
         }
 
         @Override public boolean onScale(android.view.ScaleGestureDetector d) {
