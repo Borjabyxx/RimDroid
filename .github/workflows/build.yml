@@ -74,6 +74,11 @@ jobs:
           test -s unity/prepared/assets/rimdroid_native/Managed/RimDroidBridge.dll
           echo "ORG_GRADLE_PROJECT_nativeEngine=true" >> "$GITHUB_ENV"
 
+      # RimWorld 1.7 on .NET: the official .NET runtime for Android comes from NuGet, pinned by hash
+      # (fetchDotnetRuntime in app/build.gradle); RimDroidClrHooks.dll is in app/src/dotnet.
+      - name: Enable the RimWorld 1.7 (.NET) engine
+        run: echo "ORG_GRADLE_PROJECT_dotnetEngine=true" >> "$GITHUB_ENV"
+
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew
 

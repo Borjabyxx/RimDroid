@@ -132,6 +132,13 @@ public class ClrActivity extends Activity {
                 (int) (getResources().getDisplayMetrics().widthPixels * 0.45f), android.widget.FrameLayout.LayoutParams.MATCH_PARENT));
         setContentView(root);
         addOverlay(root);
+        // A physical mouse: Android's own pointer hidden, the drawn cursor is the only one
+        // (TouchInput.mouseTo moves it); it doubled up with the drawn one (Mali tester, 2026-10-16).
+        android.view.PointerIcon noPointer =
+                android.view.PointerIcon.getSystemIcon(this, android.view.PointerIcon.TYPE_NULL);
+        root.setPointerIcon(noPointer);
+        surface.setPointerIcon(noPointer);
+        input.controls.setPointerIcon(noPointer);
         // A game: the screen stays on while it runs (it went dark mid-menu).
         getWindow().addFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
         // The log strip is for the first seconds; once the game draws, it hides (dotnet.log and the
@@ -440,7 +447,7 @@ public class ClrActivity extends Activity {
             float x = e.getX(), y = e.getY();
             switch (e.getActionMasked()) {
                 case android.view.MotionEvent.ACTION_SCROLL:
-                    pointerTo(x, y);
+                    mouseTo(x, y);
                     float v = e.getAxisValue(android.view.MotionEvent.AXIS_VSCROLL);
                     float h = e.getAxisValue(android.view.MotionEvent.AXIS_HSCROLL);
                     if (v != 0 || h != 0) glfwScroll(h, v);
@@ -448,7 +455,7 @@ public class ClrActivity extends Activity {
                 case android.view.MotionEvent.ACTION_HOVER_ENTER:
                 case android.view.MotionEvent.ACTION_HOVER_MOVE:
                 case android.view.MotionEvent.ACTION_MOVE:
-                    pointerTo(x, y);
+                    mouseTo(x, y);
                     break;
                 case android.view.MotionEvent.ACTION_HOVER_EXIT:
                     return true;
@@ -463,11 +470,21 @@ public class ClrActivity extends Activity {
             return true;
         }
 
+        /**
+         * The drawn cursor (the on-screen controls') and the game's pointer to the mouse: one cursor
+         * on screen, as on 1.6. The controls work in the root's pixels, the mouse in the surface's;
+         * the game's pointer is set last from the surface position, the exact one.
+         */
+        private void mouseTo(float x, float y) {
+            if (input != null) input.controls.moveCursorTo(x + surface.getLeft(), y + surface.getTop());
+            pointerTo(x, y);
+        }
+
         private void mouseButton(int now, int mask, int button, float x, float y) {
             boolean down = (now & mask) != 0;
             if (down == ((mouseButtons & mask) != 0)) return;
             mouseButtons = down ? mouseButtons | mask : mouseButtons & ~mask;
-            pointerTo(x, y);
+            mouseTo(x, y);
             glfwMouse(button, down ? 1 : 0, gx(x), gy(y));
         }
 
