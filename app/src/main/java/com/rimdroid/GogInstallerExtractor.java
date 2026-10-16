@@ -51,16 +51,22 @@ public final class GogInstallerExtractor {
         if (file == null || !file.isFile()) return false;
         // A single makeself/GOG .sh: shell shebang + a Makeself/mojosetup marker in the header.
         if (isMakeselfInstaller(file)) return true;
-        // A .zip bundling .sh installers: contains *.sh entries and NOT RimWorldLinux itself.
+        // A .zip bundling .sh installers: contains real installers and NOT RimWorldLinux itself.
+        // Any .sh did not do: a mod pack with Prepatcher (which carries a small script) was taken for
+        // a GOG bundle and failed with "Error reading zip content" (TECNO player, 2026-10-16).
         if (isZip(file)) {
             try (java.util.zip.ZipFile zf = new java.util.zip.ZipFile(file)) {
                 boolean hasSh = false, hasBin = false;
                 Enumeration<? extends ZipEntry> en = zf.entries();
                 while (en.hasMoreElements()) {
-                    String n = en.nextElement().getName();
-                    String base = baseName(n);
+                    ZipEntry e = en.nextElement();
+                    String base = baseName(e.getName());
                     if (base.equals(C.files.RIMWORLD_BIN)) hasBin = true;
-                    if (base.toLowerCase().endsWith(".sh")) hasSh = true;
+                    if (!hasSh && !e.isDirectory() && base.toLowerCase().endsWith(".sh")) {
+                        try (InputStream in = zf.getInputStream(e)) {
+                            hasSh = isMakeselfHeader(in);
+                        }
+                    }
                 }
                 return hasSh && !hasBin;
             } catch (IOException e) {
@@ -101,8 +107,8 @@ public final class GogInstallerExtractor {
                             while ((len = zis.read(buf)) != -1) os.write(buf, 0, len);
                         }
                         zis.closeEntry();
-                        installers.add(tmp);
                         temps.add(tmp);
+                        if (isMakeselfInstaller(tmp)) installers.add(tmp);   // not a mod's own script
                     }
                 }
             } else {
@@ -199,16 +205,21 @@ public final class GogInstallerExtractor {
     }
 
     private static boolean isMakeselfInstaller(File file) {
-        try (RandomAccessFile raf = new RandomAccessFile(file, "r")) {
-            int n = (int) Math.min(4096, raf.length());
-            byte[] head = new byte[n];
-            raf.readFully(head);
-            String s = new String(head, java.nio.charset.StandardCharsets.ISO_8859_1);
-            return s.startsWith("#!/bin/sh")
-                    && (s.contains("Makeself") || s.contains("mojosetup") || s.contains("makeself"));
+        try (InputStream in = new java.io.FileInputStream(file)) {
+            return isMakeselfHeader(in);
         } catch (IOException e) {
             return false;
         }
+    }
+
+    /** A makeself/GOG installer header: shell shebang + a Makeself/mojosetup marker in the first 4 KB. */
+    private static boolean isMakeselfHeader(InputStream in) throws IOException {
+        byte[] head = new byte[4096];
+        int n = 0, r;
+        while (n < head.length && (r = in.read(head, n, head.length - n)) != -1) n += r;
+        String s = new String(head, 0, n, java.nio.charset.StandardCharsets.ISO_8859_1);
+        return s.startsWith("#!/bin/sh")
+                && (s.contains("Makeself") || s.contains("mojosetup") || s.contains("makeself"));
     }
 
     private static boolean isZip(File file) {
