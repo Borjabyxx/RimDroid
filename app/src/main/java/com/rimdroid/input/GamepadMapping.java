@@ -42,8 +42,10 @@ public final class GamepadMapping {
 
     private static final String PREFS = "rimdroid_gamepad";
     private static final String KEY_MAPPING = "button_mapping";
+    private static final String KEY_SWAP_STICKS = "swap_sticks";
 
     private static int[] current = DEFAULT.clone();
+    private static boolean swapSticks;
 
     private GamepadMapping() {}
 
@@ -52,6 +54,20 @@ public final class GamepadMapping {
         SharedPreferences p = ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE);
         String csv = p.getString(KEY_MAPPING, null);
         current = parseOrDefault(csv);
+        swapSticks = p.getBoolean(KEY_SWAP_STICKS, false);
+    }
+
+    /** Left stick moves the cursor and the right one pans the camera, instead of the other way round
+     *  (AYN Thor player, 2026-10-16). */
+    public static boolean swapSticks(Context ctx) {
+        return ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getBoolean(KEY_SWAP_STICKS, false);
+    }
+
+    public static boolean swapSticks() { return swapSticks; }
+
+    public static void setSwapSticks(Context ctx, boolean swap) {
+        swapSticks = swap;
+        ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putBoolean(KEY_SWAP_STICKS, swap).apply();
     }
 
     private static int[] parseOrDefault(String csv) {

@@ -221,6 +221,7 @@ Na nuvem: %2$s
     <string name="nav_install_content">Instalar mod / DLC (ZIP)</string>
     <string name="nav_custom_driver">Driver Vulkan personalizado</string>
     <string name="install_content_note">Escolha um .zip (mod ou DLC) do seu celular, selecione a instância e o tipo, e toque em Instalar.</string>
+    <string name="install_content_multi">Vários mods de uma vez: coloque as pastas deles em um único .zip e instale como MODS. Ainda não foi testado com pacotes grandes de mods pesados: um .zip muito grande pode esbarrar na memória do celular ou em outros limites; se falhar, divida em alguns .zip menores.</string>
     <string name="install_content_instance">Instalar na instância</string>
     <string name="install_content_type">Tipo</string>
     <string name="install_content_mod">MODS</string>
@@ -329,6 +330,7 @@ Na nuvem: %2$s
 
     <!-- Gamepad button remapper -->
     <string name="gamepad_mapper_settings_btn">Mapeamento do controle</string>
+    <string name="gamepad_swap_sticks">Trocar analógicos (esquerdo = cursor, direito = câmera)</string>
     <string name="gamepad_mapper_title">Mapeamento do controle</string>
     <string name="gamepad_mapper_instructions">Corrija um controle com os botões trocados. Toque em Começar e depois pressione o botão físico que quiser para cada ação.</string>
     <string name="gamepad_mapper_start">Começar</string>
@@ -359,6 +361,7 @@ Na nuvem: %2$s
     <string name="native_engine_label">Motor nativo (experimental)</string>
     <string name="engine_native_hint">O motor do jogo compilado para Android, sem emulação. O mais rápido. Só RimWorld 1.6; só Vulkan. Teste inicial: faça uma cópia dos seus saves primeiro.</string>
     <string name="engine_native_renderer_note">O motor nativo sempre renderiza diretamente com Vulkan.</string>
+    <string name="waylith_renderer_note">RimWorld 1.7 sempre renderiza diretamente com Vulkan.</string>
     <string name="engine_notice_title">Novo motor disponível</string>
     <string name="engine_notice_msg">Esta versão pode rodar o RimWorld no motor nativo: mais rápido, sem emulação. Esta instância continua no motor com que rodava até você trocar em Configurações → Motor. Teste inicial: faça uma cópia dos seus saves primeiro.</string>
     <string name="engine_notice_switch">Trocar agora</string>
@@ -419,4 +422,5 @@ Na nuvem: %2$s
     <string name="transfer_export_failed">Falha ao exportar: %1$s</string>
     <string name="transfer_imported">Restaurado: %1$s → %2$s</string>
     <string name="transfer_import_failed">Falha ao importar: %1$s</string>
+    <string name="news_title">Notícias do RimWorld</string>
 </resources>

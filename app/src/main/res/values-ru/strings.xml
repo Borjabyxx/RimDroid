@@ -224,6 +224,7 @@
     <string name="nav_install_content">Установить мод / DLC (ZIP)</string>
     <string name="nav_custom_driver">Свой Vulkan-драйвер</string>
     <string name="install_content_note">Выберите .zip (мод или DLC) на телефоне, укажите инстанс и тип, затем «Установить».</string>
+    <string name="install_content_multi">Несколько модов сразу: сложите их папки в один .zip и установите как МОДЫ. Пока не проверялось на больших сборках из тяжёлых модов: очень большой архив может упереться в память телефона или другие ограничения — если не получится, разбейте его на несколько архивов поменьше.</string>
     <string name="install_content_instance">Установить в инстанс</string>
     <string name="install_content_type">Тип</string>
     <string name="install_content_mod">МОДЫ</string>
@@ -330,6 +331,7 @@
 
     <!-- Gamepad button remapper -->
     <string name="gamepad_mapper_settings_btn">Раскладка геймпада</string>
+    <string name="gamepad_swap_sticks">Поменять стики (левый — курсор, правый — камера)</string>
     <string name="gamepad_mapper_title">Раскладка геймпада</string>
     <string name="gamepad_mapper_instructions">Настройка контроллера с перепутанными кнопками. Нажми «Начать», затем нажимай нужную физическую кнопку для каждого действия.</string>
     <string name="gamepad_mapper_start">Начать</string>
@@ -359,6 +361,7 @@
     <string name="engine_box64_mono_hint">Движок эмулируется, код самой игры выполняется напрямую. Быстрее.</string>
     <string name="engine_native_hint">Движок игры, собранный для Android, без эмуляции. Самый быстрый. Только RimWorld 1.6; только Vulkan. Ранний тест: сначала сделай копию сохранений.</string>
     <string name="engine_native_renderer_note">Нативный движок всегда рисует напрямую через Vulkan.</string>
+    <string name="waylith_renderer_note">RimWorld 1.7 всегда рисует напрямую через Vulkan.</string>
     <string name="engine_notice_title">Доступен новый движок</string>
     <string name="engine_notice_msg">Эта версия умеет запускать RimWorld на нативном движке: быстрее, без эмуляции. Этот инстанс останется на прежнем движке, пока ты не переключишь его в Настройки → Движок. Ранний тест: сначала сделай копию сохранений.</string>
     <string name="engine_notice_switch">Переключить</string>
@@ -419,4 +422,5 @@
     <string name="transfer_export_failed">Не удалось выгрузить: %1$s</string>
     <string name="transfer_imported">Восстановлено: %1$s → %2$s</string>
     <string name="transfer_import_failed">Не удалось загрузить: %1$s</string>
+    <string name="news_title">Новости RimWorld</string>
 </resources>

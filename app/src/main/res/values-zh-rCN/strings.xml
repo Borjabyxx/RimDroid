@@ -220,6 +220,7 @@
     <string name="nav_install_content">安装模组／DLC（ZIP）</string>
     <string name="nav_custom_driver">自定义 Vulkan 驱动</string>
     <string name="install_content_note">从手机上选择一个 .zip（模组或 DLC），选择实例和类型，然后点“安装”。</string>
+    <string name="install_content_multi">一次安装多个模组：把它们的文件夹放进同一个 .zip，按“模组”安装。尚未在大型重度模组合集上测试：过大的压缩包可能受手机内存或其他限制影响——如果失败，请拆成几个较小的 .zip。</string>
     <string name="install_content_instance">安装到实例</string>
     <string name="install_content_type">类型</string>
     <string name="install_content_mod">模组</string>
@@ -326,6 +327,7 @@
 
     <!-- Gamepad button remapper -->
     <string name="gamepad_mapper_settings_btn">手柄映射</string>
+    <string name="gamepad_swap_sticks">交换摇杆（左 = 光标，右 = 镜头）</string>
     <string name="gamepad_mapper_title">手柄映射</string>
     <string name="gamepad_mapper_instructions">修正按键错位的手柄。点“开始”，然后为每个动作按下你想用的实体按键。</string>
     <string name="gamepad_mapper_start">开始</string>
@@ -363,6 +365,7 @@
     <string name="engine_box64_mono_hint">引擎被模拟，游戏自身的代码原生运行。更快。</string>
     <string name="engine_native_hint">为 Android 构建的游戏引擎，无需模拟。最快。仅限 RimWorld 1.6；仅支持 Vulkan。早期测试：请先备份存档。</string>
     <string name="engine_native_renderer_note">原生引擎始终直接通过 Vulkan 渲染。</string>
+    <string name="waylith_renderer_note">RimWorld 1.7 始终直接通过 Vulkan 渲染。</string>
     <string name="engine_notice_title">有新引擎可用</string>
     <string name="engine_notice_msg">此版本可以用原生引擎运行 RimWorld：更快，无需模拟。此实例会保持原来的引擎，直到你在“设置 → 引擎”中切换。早期测试：请先备份存档。</string>
     <string name="engine_notice_switch">立即切换</string>
@@ -423,4 +426,5 @@
     <string name="transfer_export_failed">导出失败：%1$s</string>
     <string name="transfer_imported">已恢复：%1$s → %2$s</string>
     <string name="transfer_import_failed">导入失败：%1$s</string>
+    <string name="news_title">RimWorld 新闻</string>
 </resources>

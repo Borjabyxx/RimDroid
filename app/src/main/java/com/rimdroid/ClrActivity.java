@@ -52,6 +52,7 @@ public class ClrActivity extends Activity {
 
     // In-game overlay, the same global setting as 1.5/1.6 (Settings → Frame rate).
     private ClrInput input;   // on-screen controls, soft and physical keyboard
+    private com.rimdroid.input.GamepadHandler gamepad;   // a physical controller, as on 1.6
     private android.view.SurfaceView surface;
     private int bufferW, bufferH;   // the game's window in game pixels (the surface buffer)
     private TextView fpsText;
@@ -128,6 +129,13 @@ public class ClrActivity extends Activity {
         // On-screen controls above the picture (below the log strip and the FPS overlay); touches
         // they do not take fall through to the surface (TouchInput).
         input = new ClrInput(this, root, instanceName);
+        // A physical controller drives the on-screen controls' cursor and keys, as on the 1.6 engines
+        // (GamepadHandler); 1.7 had no gamepad at all. Sticks and triggers come as generic motion to
+        // the focused view only, so the surface takes focus.
+        gamepad = new com.rimdroid.input.GamepadHandler(this, input.controls);
+        surface.setFocusable(true);
+        surface.setFocusableInTouchMode(true);
+        surface.requestFocus();
         root.addView(scroll, new android.widget.FrameLayout.LayoutParams(
                 (int) (getResources().getDisplayMetrics().widthPixels * 0.45f), android.widget.FrameLayout.LayoutParams.MATCH_PARENT));
         setContentView(root);
@@ -141,10 +149,10 @@ public class ClrActivity extends Activity {
         input.controls.setPointerIcon(noPointer);
         // A game: the screen stays on while it runs (it went dark mid-menu).
         getWindow().addFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
-        // The log strip is for the first seconds; once the game draws, it hides (dotnet.log and the
-        // game's own Logs/Player.log keep everything). A tap on the top-left corner brings it back.
+        // The log strip starts hidden (it covered the loading screen for 8 s; dotnet.log and the game's
+        // own Logs/Player.log keep everything). A tap on the top-left corner shows it, e.g. on a hang.
         logStrip = scroll;
-        ui.postDelayed(() -> scroll.setVisibility(android.view.View.GONE), 8000);
+        scroll.setVisibility(android.view.View.GONE);
         getWindow().getDecorView().setSystemUiVisibility(android.view.View.SYSTEM_UI_FLAG_FULLSCREEN
                 | android.view.View.SYSTEM_UI_FLAG_HIDE_NAVIGATION | android.view.View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY);
 
@@ -224,8 +232,44 @@ public class ClrActivity extends Activity {
             if (e.getAction() == android.view.KeyEvent.ACTION_UP) ClrInput.tapKey(ClrInput.ESCAPE);
             return true;
         }
+        // A controller's buttons and D-pad go to the gamepad first: the keyboard path would take its
+        // D-pad for arrow keys. Everything else is the keyboard's first, as on 1.6.
+        if (gamepad != null && e.isFromSource(android.view.InputDevice.SOURCE_GAMEPAD)
+                && (android.view.KeyEvent.isGamepadButton(e.getKeyCode()) || isDpad(e.getKeyCode()))
+                && gamepad.onKey(e)) return true;
         if (ClrInput.onKeyEvent(e)) return true;
+        if (gamepad != null && gamepad.onKey(e)) return true;
         return super.dispatchKeyEvent(e);
+    }
+
+    private static boolean isDpad(int code) {
+        return code == android.view.KeyEvent.KEYCODE_DPAD_UP || code == android.view.KeyEvent.KEYCODE_DPAD_DOWN
+                || code == android.view.KeyEvent.KEYCODE_DPAD_LEFT || code == android.view.KeyEvent.KEYCODE_DPAD_RIGHT
+                || code == android.view.KeyEvent.KEYCODE_DPAD_CENTER;
+    }
+
+    // A controller's sticks and triggers (a mouse is the surface's own, TouchInput.onMouse).
+    @Override public boolean onGenericMotionEvent(android.view.MotionEvent e) {
+        if (gamepad != null && gamepad.onMotion(e)) return true;
+        return super.onGenericMotionEvent(e);
+    }
+
+    // The on-screen controls hide while a controller is connected and come back when it goes, as on
+    // 1.6; only on a change, so the manual hide toggle is left alone.
+    private android.hardware.input.InputManager inputManager;
+    private boolean lastPadConnected;
+    private final android.hardware.input.InputManager.InputDeviceListener padListener =
+            new android.hardware.input.InputManager.InputDeviceListener() {
+                @Override public void onInputDeviceAdded(int id)   { refreshGamepadControls(); }
+                @Override public void onInputDeviceRemoved(int id) { refreshGamepadControls(); }
+                @Override public void onInputDeviceChanged(int id) { refreshGamepadControls(); }
+            };
+
+    private void refreshGamepadControls() {
+        boolean pad = com.rimdroid.input.GamepadHandler.hasConnectedGamepad();
+        if (pad == lastPadConnected) return;
+        lastPadConnected = pad;
+        if (input != null) input.controls.setControlsHidden(pad);
     }
 
     private long shown;
@@ -347,10 +391,17 @@ public class ClrActivity extends Activity {
         super.onResume();
         if (fpsText != null) { fpsLastTimeMs = 0; ui.removeCallbacks(fpsTextTick); ui.postDelayed(fpsTextTick, 1000); }
         if (perfHandler != null) { perfHandler.removeCallbacks(perfTick); perfHandler.post(perfTick); }
+        if (gamepad != null) gamepad.start();
+        if (surface != null) surface.requestFocus();
+        inputManager = (android.hardware.input.InputManager) getSystemService(INPUT_SERVICE);
+        if (inputManager != null) inputManager.registerInputDeviceListener(padListener, null);
+        refreshGamepadControls();
     }
 
     @Override protected void onPause() {
         super.onPause();
+        if (gamepad != null) gamepad.stop();
+        if (inputManager != null) inputManager.unregisterInputDeviceListener(padListener);
         if (input != null) input.controls.resetAll();   // nothing stays held while away
         ui.removeCallbacks(fpsTextTick);
         if (perfHandler != null) perfHandler.removeCallbacks(perfTick);

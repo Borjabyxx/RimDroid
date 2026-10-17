@@ -135,6 +135,11 @@ public class GamepadHandler {
         rsY  = e.getAxisValue(MotionEvent.AXIS_RZ);
         lsX  = e.getAxisValue(MotionEvent.AXIS_X);    // left stick
         lsY  = e.getAxisValue(MotionEvent.AXIS_Y);
+        if (GamepadMapping.swapSticks()) {             // Settings: left stick = cursor, right = camera
+            float x = rsX, y = rsY;
+            rsX = lsX; rsY = lsY;
+            lsX = x;   lsY = y;
+        }
         hatX = e.getAxisValue(MotionEvent.AXIS_HAT_X);
         hatY = e.getAxisValue(MotionEvent.AXIS_HAT_Y);
         lt = readTrigger(e, true);

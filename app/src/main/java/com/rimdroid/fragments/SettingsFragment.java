@@ -27,6 +27,7 @@ import java.util.List;
 public class SettingsFragment extends Fragment {
     // While the native engine is chosen the renderer group shows Vulkan and ignores its own checks.
     private boolean rendererLocked;
+    private boolean waylithInstance;   // RimWorld 1.7: its own Vulkan renderer, none of the box64 video options
 
     /** Pass the instance name via arguments so this page edits THAT instance's settings. */
     public static final String ARG_INSTANCE = "instance";
@@ -116,6 +117,7 @@ public class SettingsFragment extends Fragment {
         }
         boolean nativeMonoOffered = com.rimdroid.game.NativeMono.isSupported(engineInstance);
         boolean nativeEngineOffered = com.rimdroid.game.NativeEngine.isSupported(engineInstance);
+        waylithInstance = engineInstance != null && com.rimdroid.game.DotnetEngine.isWaylith(engineInstance);
         RadioGroup rgEngine = view.findViewById(R.id.rg_engine);
         view.findViewById(R.id.rb_engine_box64_mono).setVisibility(nativeMonoOffered ? View.VISIBLE : View.GONE);
         view.findViewById(R.id.tv_engine_box64_mono_hint).setVisibility(nativeMonoOffered ? View.VISIBLE : View.GONE);
@@ -304,6 +306,10 @@ public class SettingsFragment extends Fragment {
         // --- Gamepad button mapping (fix swapped/inverted controllers) ---
         view.findViewById(R.id.btn_gamepad_mapper).setOnClickListener(v ->
             startActivity(new android.content.Intent(requireContext(), com.rimdroid.GamepadMapperActivity.class)));
+        Switch swSwapSticks = view.findViewById(R.id.sw_swap_sticks);
+        swSwapSticks.setChecked(com.rimdroid.input.GamepadMapping.swapSticks(requireContext()));
+        swSwapSticks.setOnCheckedChangeListener((b, checked) ->
+                com.rimdroid.input.GamepadMapping.setSwapSticks(requireContext(), checked));
 
         // --- Render resolution (Video card): vertical radios, just the resolution text. Per-device
         // presets from a ~720p floor up to native. Lower = more FPS on weak GPUs + a bigger (blurrier)
@@ -413,21 +419,26 @@ public class SettingsFragment extends Fragment {
      * What the engine choice decides below it: the native engine always renders with Vulkan directly,
      * so the renderer, the Vulkan driver and box64's compatibility mode are of no use to it and go
      * grey, with a note in their place; its own Vulkan compatibility setting shows instead.
+     * RimWorld 1.7 is the same: its engine renders with Vulkan itself, whatever these say (a Mali
+     * tester switched to MobileGlues to fix broken icons, 2026-10-17).
      */
     private void applyEngineState(View view, int engine) {
-        boolean nativeEngine = engine == InstanceSettings.ENGINE_NATIVE;
+        boolean nativeEngine = engine == InstanceSettings.ENGINE_NATIVE && !waylithInstance;
+        boolean vulkanOnly = nativeEngine || waylithInstance;
         RadioGroup rgRenderer = view.findViewById(R.id.rg_renderer);
         rendererLocked = true;
-        if (nativeEngine) rgRenderer.check(R.id.rb_zink_zfa);
+        if (vulkanOnly) rgRenderer.check(R.id.rb_zink_zfa);
         else rgRenderer.check(inst.getRenderer() == LauncherPreferences.Renderer.MOBILEGLUES
                 ? R.id.rb_mobileglues : R.id.rb_zink_zfa);
         rendererLocked = false;
-        for (int i = 0; i < rgRenderer.getChildCount(); i++) rgRenderer.getChildAt(i).setEnabled(!nativeEngine);
+        for (int i = 0; i < rgRenderer.getChildCount(); i++) rgRenderer.getChildAt(i).setEnabled(!vulkanOnly);
         for (int id : new int[]{ R.id.spinner_vulkan_driver, R.id.btn_recommend_driver, R.id.sw_compat_mode }) {
             View v = view.findViewById(id);
-            if (v != null) v.setEnabled(!nativeEngine);
+            if (v != null) v.setEnabled(!vulkanOnly);
         }
-        view.findViewById(R.id.tv_native_renderer_note).setVisibility(nativeEngine ? View.VISIBLE : View.GONE);
+        android.widget.TextView note = view.findViewById(R.id.tv_native_renderer_note);
+        note.setText(waylithInstance ? R.string.waylith_renderer_note : R.string.engine_native_renderer_note);
+        note.setVisibility(vulkanOnly ? View.VISIBLE : View.GONE);
         view.findViewById(R.id.ll_vk_compat).setVisibility(nativeEngine ? View.VISIBLE : View.GONE);
     }
 }

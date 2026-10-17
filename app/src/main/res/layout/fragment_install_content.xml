@@ -68,6 +68,16 @@
                 android:layout_height="wrap_content"
                 android:text="@string/install_content_note"
                 android:textAppearance="?attr/textAppearanceBodySmall"
+                android:layout_marginBottom="8dp" />
+
+            <!-- Several mods in one zip work (ModImporter takes every About/About.xml); big packs of
+                 heavy mods were not tried, hence the warning. -->
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="@string/install_content_multi"
+                android:textAppearance="?attr/textAppearanceBodySmall"
+                android:alpha="0.8"
                 android:layout_marginBottom="12dp" />
 
             <!-- Two tabs rather than radio buttons: it is a choice between two whole modes, and a

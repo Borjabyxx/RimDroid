@@ -245,6 +245,7 @@ In the cloud: %2$s
     <string name="nav_install_content">Install mod / DLC (ZIP)</string>
     <string name="nav_custom_driver">Custom Vulkan driver</string>
     <string name="install_content_note">Pick a .zip (mod or DLC) from your phone, choose the instance and type, then Install.</string>
+    <string name="install_content_multi">Several mods at once: put their folders into one .zip and install it as MODS. Not tested yet with big packs of heavy mods: a very large zip may run into the phone\'s memory or other limits — if it fails, split it into a few smaller zips.</string>
     <string name="install_content_instance">Install into instance</string>
     <string name="install_content_type">Type</string>
     <string name="install_content_mod">MODS</string>
@@ -353,6 +354,7 @@ In the cloud: %2$s
 
     <!-- Gamepad button remapper -->
     <string name="gamepad_mapper_settings_btn">Gamepad mapping</string>
+    <string name="gamepad_swap_sticks">Swap gamepad sticks (left = cursor, right = camera)</string>
     <string name="gamepad_mapper_title">Gamepad mapping</string>
     <string name="gamepad_mapper_instructions">Fix a controller with swapped buttons. Tap Start, then press the physical button you want for each action.</string>
     <string name="gamepad_mapper_start">Start</string>
@@ -382,6 +384,7 @@ In the cloud: %2$s
     <string name="engine_box64_mono_hint">The engine is emulated, the game\'s own code runs natively. Faster.</string>
     <string name="engine_native_hint">The game\'s own engine built for Android, nothing emulated. Fastest. RimWorld 1.6 only; Vulkan only. Early test: back up your saves first.</string>
     <string name="engine_native_renderer_note">The native engine always renders with Vulkan directly.</string>
+    <string name="waylith_renderer_note">RimWorld 1.7 always renders with Vulkan directly.</string>
     <string name="engine_notice_title">New engine available</string>
     <string name="engine_notice_msg">This version can run RimWorld on the native engine: faster, nothing emulated. This instance stays on the engine it ran with until you switch it in Settings → Engine. Early test: back up your saves first.</string>
     <string name="engine_notice_switch">Switch now</string>
@@ -440,4 +443,5 @@ In the cloud: %2$s
     <string name="transfer_export_failed">Export failed: %1$s</string>
     <string name="transfer_imported">Restored %1$s → %2$s</string>
     <string name="transfer_import_failed">Import failed: %1$s</string>
+    <string name="news_title">RimWorld news</string>
 </resources>

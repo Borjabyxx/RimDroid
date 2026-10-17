@@ -497,6 +497,14 @@
             android:text="@string/gamepad_mapper_settings_btn" />
 
         <Switch
+            android:id="@+id/sw_swap_sticks"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:textSize="14sp"
+            android:text="@string/gamepad_swap_sticks" />
+
+        <Switch
             android:id="@+id/sw_haptic"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
