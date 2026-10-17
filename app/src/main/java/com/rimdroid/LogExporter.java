@@ -29,6 +29,7 @@ public final class LogExporter {
     /** Ship only this much of the end of a sigsegv_fault log (a fault storm can grow it to tens of MB). */
     private static final long SIGSEGV_TAIL_BYTES = 256 * 1024;
     private static final long NATIVE_LOG_TAIL_BYTES = 2L * 1024 * 1024;
+    private static final long GAME17_LOG_TAIL_BYTES = 4L * 1024 * 1024;
 
     private LogExporter() {}
 
@@ -103,6 +104,7 @@ public final class LogExporter {
                 zos.closeEntry();
                 r.items.add(f.getName());
             }
+            addGame17Logs(zos, buf, r, gamePath, userDir);
             addLogcat(zos, buf, r);
             if (ctx != null) addExitInfo(ctx, zos, buf, r);
         } catch (Exception e) {
@@ -111,6 +113,48 @@ public final class LogExporter {
         }
         if (r.items.isEmpty()) r.error = "No logs found yet (run the game first).";
         return r;
+    }
+
+    /**
+     * RimWorld 1.7 (Waylith on .NET) writes its own log to Logs/Player.log under the user data dir,
+     * not where the box64 engine's Player.log is, plus dotnet.log (the runtime's) in the instance and
+     * one crash-*.txt per crash. None of it was in the report: a Mali tester's broken icons came with
+     * nothing from the game (2026-10-17). Entries are prefixed "rw17_" so they cannot clash with the
+     * box64 engine's names; logs are tail-capped, and only the newest crash report goes in.
+     */
+    private static void addGame17Logs(ZipOutputStream zos, byte[] buf, Result r, File gamePath, File userDir)
+            throws java.io.IOException {
+        File logs = new File(userDir, "Logs");
+        java.util.List<File> files = new java.util.ArrayList<>(java.util.Arrays.asList(
+                new File(logs, "Player.log"), new File(logs, "Player-prev.log"), new File(gamePath, "dotnet.log"),
+                new File(gamePath, "vk_bcdiag.log"),     // libvulkan.so's BC-conversion diagnosis (Mali)
+                new File(gamePath, "vk_pipe.log")));     // libvulkan.so's pipeline/draw diagnosis (Mali icons)
+        File[] crashes = new File(userDir, "Crashes").listFiles((d, n) -> n.startsWith("crash-") && n.endsWith(".txt"));
+        if (crashes != null && crashes.length > 0) {
+            File newest = crashes[0];
+            for (File c : crashes) if (c.lastModified() > newest.lastModified()) newest = c;
+            files.add(newest);
+        }
+        for (File f : files) {
+            if (!f.isFile()) continue;
+            String name = "rw17_" + f.getName();
+            zos.putNextEntry(new ZipEntry(name));
+            try (FileInputStream in = new FileInputStream(f)) {
+                long skip = f.length() - GAME17_LOG_TAIL_BYTES;
+                while (skip > 0) {
+                    long n = in.skip(skip);
+                    if (n <= 0) break;
+                    skip -= n;
+                }
+                int n;
+                while ((n = in.read(buf)) > 0) {
+                    zos.write(buf, 0, n);
+                    r.bytes += n;
+                }
+            }
+            zos.closeEntry();
+            r.items.add(name);
+        }
     }
 
     /**

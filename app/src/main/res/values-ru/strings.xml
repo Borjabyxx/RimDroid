@@ -195,7 +195,7 @@
     <string name="editor_done">Готово</string>
     <string name="editor_delete">Удалить элемент</string>
     <string name="editor_reset_confirm">Сбросить все экранные кнопки к раскладке по умолчанию?</string>
-    <string name="nav_launcher">Лаунчер</string>
+    <string name="nav_launcher">RimDroid</string>
     <string name="nav_settings">Настройки</string>
     <string name="app_settings_theme">Тема</string>
     <string name="etc2_cache_title">Кеш текстур (MobileGlues)</string>
@@ -392,6 +392,10 @@
     <string name="mod_delete_confirm">Удалить</string>
     <string name="mods_sort">Сортировать</string>
     <string name="mods_install_zip">Установить ZIP</string>
+    <string name="mods_enable_all">Включить все показанные</string>
+    <string name="mods_disable_all">Отключить все показанные</string>
+    <string name="mods_disable_all_confirm">Отключить все показанные моды (%1$d)? Core и DLC останутся включены. Порядок загрузки модов потеряется: при повторном включении они встанут в конец — потом нажмите «Сортировать».</string>
+    <string name="mods_enabled_n">Включено модов: %1$d. Нажмите «Сортировать», чтобы расставить их по порядку.</string>
     <string name="mods_sort_hint">«Сортировать» расставляет включённые моды по правилам их авторов. Тяни мод за ≡, чтобы передвинуть; долгое нажатие — в начало / в конец.</string>
     <string name="mods_sort_title">Порядок загрузки</string>
     <string name="mods_sort_moved">Передвинется модов: %1$d.</string>

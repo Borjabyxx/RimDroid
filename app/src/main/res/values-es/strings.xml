@@ -190,7 +190,7 @@ En la nube: %2$s
     <string name="editor_done">Listo</string>
     <string name="editor_delete">Eliminar elemento</string>
     <string name="editor_reset_confirm">¿Restablecer todos los controles en pantalla al diseño predeterminado?</string>
-    <string name="nav_launcher">Lanzador</string>
+    <string name="nav_launcher">RimDroid</string>
     <string name="nav_settings">Ajustes</string>
     <string name="app_settings_theme">Tema</string>
     <string name="etc2_cache_title">Caché de texturas (MobileGlues)</string>
@@ -390,6 +390,10 @@ En la nube: %2$s
     <string name="mod_delete_confirm">Eliminar</string>
     <string name="mods_sort">Ordenar</string>
     <string name="mods_install_zip">Instalar ZIP</string>
+    <string name="mods_enable_all">Activar todos los mostrados</string>
+    <string name="mods_disable_all">Desactivar todos los mostrados</string>
+    <string name="mods_disable_all_confirm">¿Desactivar los %1$d mods mostrados? Core y los DLC siguen activos. Se pierde el orden de carga de los mods; al activarlos de nuevo se añaden al final: usa Ordenar después.</string>
+    <string name="mods_enabled_n">%1$d mods activados. Pulsa Ordenar para ponerlos en orden.</string>
     <string name="mods_sort_hint">Ordenar coloca los mods activos según las reglas de sus autores. Arrastra un mod por ≡ para moverlo; mantén pulsado para llevarlo al principio o al final.</string>
     <string name="mods_sort_title">Orden de carga</string>
     <string name="mods_sort_moved">Se moverán %1$d mod(s).</string>

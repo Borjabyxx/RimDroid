@@ -57,7 +57,7 @@ public class ModsFragment extends Fragment {
     private final List<GameInstance> instances = new ArrayList<>();
     private final List<Object> rows = new ArrayList<>();   // String = section header, Row = a mod
     private boolean editable;
-    private View btnSort;
+    private View btnSort, btnEnableAll, btnDisableAll;
     /** Dragging changes only the screen; true until the new order is written on release. */
     private boolean dragged;
     private androidx.recyclerview.widget.ItemTouchHelper dragHelper;
@@ -94,13 +94,13 @@ public class ModsFragment extends Fragment {
         instances.addAll(GameInstanceManager.requireSingleton().getInstances());
         List<String> names = new ArrayList<>();
         if (instances.isEmpty()) names.add(getString(R.string.no_instances));
+        // Several instances: none is picked for the player (editing the wrong one's mods is too easy);
+        // a single one is picked at once.
+        if (instances.size() > 1) names.add(getString(R.string.choose_instance_prompt));
         for (GameInstance gi : instances) names.add(gi.getName());
         ArrayAdapter<String> a = new ArrayAdapter<>(requireContext(), android.R.layout.simple_spinner_item, names);
         a.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
         spInstance.setAdapter(a);
-        String last = com.rimdroid.LauncherPreferences.requireSingleton().getLastInstanceName();
-        for (int i = 0; i < instances.size(); i++)
-            if (instances.get(i).getName().equals(last)) spInstance.setSelection(i);
         spInstance.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
             @Override public void onItemSelected(AdapterView<?> p, View view, int pos, long id) { refresh(); }
             @Override public void onNothingSelected(AdapterView<?> p) {}
@@ -114,6 +114,10 @@ public class ModsFragment extends Fragment {
                 Navigation.findNavController(v).navigate(R.id.action_open_install));
         btnSort = v.findViewById(R.id.btn_mods_sort);
         btnSort.setOnClickListener(x -> sort());
+        btnEnableAll = v.findViewById(R.id.btn_mods_enable_all);
+        btnDisableAll = v.findViewById(R.id.btn_mods_disable_all);
+        btnEnableAll.setOnClickListener(x -> enableAllShown());
+        btnDisableAll.setOnClickListener(x -> disableAllShown());
     }
 
     @Override
@@ -125,6 +129,7 @@ public class ModsFragment extends Fragment {
     @Nullable
     private GameInstance current() {
         int i = spInstance == null ? -1 : spInstance.getSelectedItemPosition();
+        if (instances.size() > 1) i--;   // the "choose an instance" line comes first
         return (i >= 0 && i < instances.size()) ? instances.get(i) : null;
     }
 
@@ -136,7 +141,12 @@ public class ModsFragment extends Fragment {
         tvRunning.setVisibility(running ? View.VISIBLE : View.GONE);
         if (gi == null) {
             tvNoConfig.setVisibility(View.GONE);
-            tvEmpty.setVisibility(View.VISIBLE);
+            // "No mods" only when there is no instance at all, not while one is still to be chosen.
+            tvEmpty.setVisibility(instances.isEmpty() ? View.VISIBLE : View.GONE);
+            editable = false;
+            btnSort.setEnabled(false);
+            btnEnableAll.setEnabled(false);
+            btnDisableAll.setEnabled(false);
             adapter.notifyDataSetChanged();
             return;
         }
@@ -149,6 +159,8 @@ public class ModsFragment extends Fragment {
         tvNoConfig.setVisibility(order == null ? View.VISIBLE : View.GONE);
         editable = !running && order != null;
         btnSort.setEnabled(editable);
+        btnEnableAll.setEnabled(editable);
+        btnDisableAll.setEnabled(editable);
 
         String q = etSearch.getText().toString().trim().toLowerCase(Locale.ROOT);
         Map<String, ModList.Mod> byId = ModList.byId(mods);
@@ -187,6 +199,55 @@ public class ModsFragment extends Fragment {
         if (!ModList.setActive(new File(gi.getGamePath()), r.packageId, on))
             Toast.makeText(requireContext(), R.string.mods_switch_failed, Toast.LENGTH_SHORT).show();
         refresh();
+    }
+
+    // ---- enable / disable everything shown (players load 150 mods at once) ----
+
+    /** The rows on screen now (all mods, or what the search leaves) that are active or not. */
+    private List<Row> shown(boolean active) {
+        List<Row> out = new ArrayList<>();
+        for (Object o : rows) if (o instanceof Row && ((Row) o).active == active) out.add((Row) o);
+        return out;
+    }
+
+    /** Every inactive mod shown goes to the end of the load order, as the game does with one. */
+    private void enableAllShown() {
+        GameInstance gi = current();
+        if (gi == null || !editable) return;
+        File dir = new File(gi.getGamePath());
+        List<String> order = ModList.activeOrder(dir);
+        if (order == null) return;
+        List<Row> off = shown(false);
+        if (off.isEmpty()) return;
+        for (Row r : off) if (!order.contains(r.packageId)) order.add(r.packageId);
+        if (!ModList.writeOrder(dir, order))
+            Toast.makeText(requireContext(), R.string.mods_switch_failed, Toast.LENGTH_SHORT).show();
+        else
+            Toast.makeText(requireContext(), getString(R.string.mods_enabled_n, off.size()), Toast.LENGTH_LONG).show();
+        refresh();
+    }
+
+    /** Every active mod shown is switched off, except Core and the DLC (as the game keeps them);
+     *  their load order is lost, so it asks first. */
+    private void disableAllShown() {
+        GameInstance gi = current();
+        if (gi == null || !editable) return;
+        List<String> ids = new ArrayList<>();
+        for (Row r : shown(true)) if (r.mod == null || !r.mod.official) ids.add(r.packageId);
+        if (ids.isEmpty()) return;
+        new MaterialAlertDialogBuilder(requireContext())
+                .setMessage(getString(R.string.mods_disable_all_confirm, ids.size()))
+                .setNegativeButton(android.R.string.cancel, null)
+                .setPositiveButton(R.string.mods_disable_all, (d, w) -> {
+                    File dir = new File(gi.getGamePath());
+                    List<String> order = ModList.activeOrder(dir);
+                    if (order == null) return;
+                    order.removeAll(ids);
+                    if (!ModList.writeOrder(dir, order))
+                        Toast.makeText(requireContext(), R.string.mods_switch_failed, Toast.LENGTH_SHORT).show();
+                    refresh();
+                })
+                .show();
     }
 
     // ---- load order ----

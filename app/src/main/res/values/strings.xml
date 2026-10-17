@@ -216,7 +216,7 @@ In the cloud: %2$s
     <string name="editor_done">Done</string>
     <string name="editor_delete">Delete element</string>
     <string name="editor_reset_confirm">Reset all on-screen controls to the default layout?</string>
-    <string name="nav_launcher">Launcher</string>
+    <string name="nav_launcher">RimDroid</string>
     <string name="nav_settings">Settings</string>
     <string name="app_settings_theme">Theme</string>
     <string name="etc2_cache_title">Texture cache (MobileGlues)</string>
@@ -413,6 +413,10 @@ In the cloud: %2$s
     <string name="mod_delete_confirm">Delete</string>
     <string name="mods_sort">Sort</string>
     <string name="mods_install_zip">Install ZIP</string>
+    <string name="mods_enable_all">Enable all shown</string>
+    <string name="mods_disable_all">Disable all shown</string>
+    <string name="mods_disable_all_confirm">Disable all %1$d mods shown? Core and the DLC stay on. The load order of the mods is lost; enabling them again adds them at the end — use Sort afterwards.</string>
+    <string name="mods_enabled_n">%1$d mods enabled. Press Sort to put them in order.</string>
     <string name="mods_sort_hint">Sort orders the active mods by the rules their authors give. Drag a mod by ≡ to move it; long-press for top / bottom.</string>
     <string name="mods_sort_title">Load order</string>
     <string name="mods_sort_moved">%1$d mod(s) will move.</string>

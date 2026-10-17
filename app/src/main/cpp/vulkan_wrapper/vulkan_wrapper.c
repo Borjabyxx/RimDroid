@@ -16,10 +16,15 @@
 #include <string.h>
 #include <time.h>
 #include <unistd.h>
+#include <sys/stat.h>
 #include <vulkan/vulkan.h>
 
 #define API __attribute__((visibility("default")))
 #define LOGI(...) __android_log_print(ANDROID_LOG_INFO, "RimDroid/vkwrap", __VA_ARGS__)
+// Pipeline diagnosis (2026-10-17), defined further down with the rest of it.
+__attribute__((format(printf, 1, 2))) static void PDIAG(const char* fmt, ...);
+__attribute__((format(printf, 3, 4))) static void pd_app(char* buf, int* m, const char* fmt, ...);
+static int g_featuresLogged;
 
 static void* g_real;
 static PFN_vkGetInstanceProcAddr g_gipa;
@@ -129,8 +134,79 @@ static VkFormat bc_query_format(VkFormat f) {
     return bc_substitute(f);   // UNDEFINED: the driver reports no support, as it should
 }
 
+// ---- BC conversion diagnosis (2026-10-17) -----------------------------------------------------------
+// On a Mali tester's phone the Architect icons of beds, braziers, drapes, cribs... stayed empty, while
+// the same conversion on an S25 forced into it (rd_no_bc) draws them: every texture re-encoded, no
+// error. What differs is the driver's answers about ETC2/EAC, which the engine is given for BC. Logged
+// once each: the format features per BC format asked about, every distinct image-format question and
+// its answer, every distinct shape of BC image the engine creates, and any image or view the driver
+// refuses. Compared between the two phones. RimDroid/vkbcdiag, and $HOME/vk_bcdiag.log (the instance;
+// rewritten each run) for the bug report: the startup lines fall out of logcat in a long session.
+static FILE* g_bcDiagFile;
+static pthread_mutex_t g_bcDiagFileMu = PTHREAD_MUTEX_INITIALIZER;
+
+__attribute__((format(printf, 1, 2)))
+static void BCDIAG(const char* fmt, ...) {
+    char line[512];
+    va_list ap;
+    va_start(ap, fmt);
+    vsnprintf(line, sizeof line, fmt, ap);
+    va_end(ap);
+    __android_log_print(ANDROID_LOG_INFO, "RimDroid/vkbcdiag", "%s", line);
+    pthread_mutex_lock(&g_bcDiagFileMu);
+    if (!g_bcDiagFile) {
+        const char* home = getenv("HOME");
+        char path[512];
+        snprintf(path, sizeof path, "%s/vk_bcdiag.log", home ? home : ".");
+        g_bcDiagFile = fopen(path, "w");
+    }
+    if (g_bcDiagFile) { fprintf(g_bcDiagFile, "%s\n", line); fflush(g_bcDiagFile); }
+    pthread_mutex_unlock(&g_bcDiagFileMu);
+}
+#define BCDIAG_KEYS 96
+static uint64_t g_bcDiagKeys[BCDIAG_KEYS];
+static int g_bcDiagCount;
+static pthread_mutex_t g_bcDiagMu = PTHREAD_MUTEX_INITIALIZER;
+
+// 1 the first time this key is seen (and there is room to remember it), else 0.
+static int bcdiag_first(uint64_t key) {
+    int first = 0;
+    pthread_mutex_lock(&g_bcDiagMu);
+    int i = 0;
+    while (i < g_bcDiagCount && g_bcDiagKeys[i] != key) i++;
+    if (i == g_bcDiagCount && g_bcDiagCount < BCDIAG_KEYS) { g_bcDiagKeys[g_bcDiagCount++] = key; first = 1; }
+    pthread_mutex_unlock(&g_bcDiagMu);
+    return first;
+}
+
+static void bcdiag_features(VkFormat asked, VkFormat q, const VkFormatProperties* p) {
+    if (!is_bc(asked) || !bc_convert() || !bcdiag_first(0x1000000000ULL | (uint32_t)asked)) return;
+    BCDIAG("format %d (as %d): optimal 0x%x, linear 0x%x, buffer 0x%x", asked, q,
+           p->optimalTilingFeatures, p->linearTilingFeatures, p->bufferFeatures);
+}
+
+static void bcdiag_imageprops(VkFormat asked, VkImageType type, VkImageTiling tiling, VkImageUsageFlags usage,
+                              VkImageCreateFlags flags, VkResult r, const VkImageFormatProperties* p) {
+    if (!is_bc(asked) || !bc_convert()) return;
+    uint64_t key = 0x2000000000ULL ^ ((uint64_t)asked << 40) ^ ((uint64_t)type << 36) ^ ((uint64_t)tiling << 34)
+                   ^ ((uint64_t)usage << 16) ^ flags;
+    if (!bcdiag_first(key)) return;
+    if (r == VK_SUCCESS)
+        BCDIAG("image props format %d type %d tiling %d usage 0x%x flags 0x%x: max %ux%ux%u, %u mips, %u layers, samples 0x%x",
+               asked, type, tiling, usage, flags, p->maxExtent.width, p->maxExtent.height, p->maxExtent.depth,
+               p->maxMipLevels, p->maxArrayLayers, p->sampleCounts);
+    else
+        BCDIAG("image props format %d type %d tiling %d usage 0x%x flags 0x%x: result %d", asked, type, tiling, usage, flags, r);
+}
+
 static void VKAPI_CALL getfeatures_wrap(VkPhysicalDevice pd, VkPhysicalDeviceFeatures* f) {
     g_getFeatures(pd, f);
+    if (!g_featuresLogged) {
+        g_featuresLogged = 1;
+        PDIAG("features: robustBufferAccess %d depthClamp %d dualSrcBlend %d independentBlend %d shaderClipDistance %d fillModeNonSolid %d BC %d ETC2 %d ASTC %d samplerAnisotropy %d vertexStoresAtomics %d fragmentStoresAtomics %d",
+              f->robustBufferAccess, f->depthClamp, f->dualSrcBlend, f->independentBlend, f->shaderClipDistance, f->fillModeNonSolid, f->textureCompressionBC,
+              f->textureCompressionETC2, f->textureCompressionASTC_LDR, f->samplerAnisotropy, f->vertexPipelineStoresAndAtomics, f->fragmentStoresAndAtomics);
+    }
     if (g_realBc < 0) g_realBc = f->textureCompressionBC;
     if (bc_convert()) f->textureCompressionBC = VK_TRUE;
 }
@@ -145,19 +221,23 @@ static void VKAPI_CALL getformatprops_wrap(VkPhysicalDevice pd, VkFormat format,
     VkFormat q = bc_query_format(format);
     if (q == VK_FORMAT_UNDEFINED) { memset(p, 0, sizeof *p); return; }
     g_getFormatProps(pd, q, p);
+    bcdiag_features(format, q, p);
 }
 
 static void VKAPI_CALL getformatprops2_wrap(VkPhysicalDevice pd, VkFormat format, VkFormatProperties2* p) {
     VkFormat q = bc_query_format(format);
     g_getFormatProps2(pd, q == VK_FORMAT_UNDEFINED ? format : q, p);
     if (q == VK_FORMAT_UNDEFINED) memset(&p->formatProperties, 0, sizeof p->formatProperties);
+    else bcdiag_features(format, q, &p->formatProperties);
 }
 
 static VkResult VKAPI_CALL getimageformatprops_wrap(VkPhysicalDevice pd, VkFormat format, VkImageType type, VkImageTiling tiling,
                                                     VkImageUsageFlags usage, VkImageCreateFlags flags, VkImageFormatProperties* p) {
     VkFormat q = bc_query_format(format);
     if (q == VK_FORMAT_UNDEFINED) return VK_ERROR_FORMAT_NOT_SUPPORTED;
-    return g_getImageFormatProps(pd, q, type, tiling, usage, flags, p);
+    VkResult r = g_getImageFormatProps(pd, q, type, tiling, usage, flags, p);
+    bcdiag_imageprops(format, type, tiling, usage, flags, r, p);
+    return r;
 }
 
 static VkResult VKAPI_CALL getimageformatprops2_wrap(VkPhysicalDevice pd, const VkPhysicalDeviceImageFormatInfo2* info, VkImageFormatProperties2* p) {
@@ -166,7 +246,9 @@ static VkResult VKAPI_CALL getimageformatprops2_wrap(VkPhysicalDevice pd, const 
     if (q == info->format) return g_getImageFormatProps2(pd, info, p);
     VkPhysicalDeviceImageFormatInfo2 copy = *info;
     copy.format = q;
-    return g_getImageFormatProps2(pd, &copy, p);
+    VkResult r = g_getImageFormatProps2(pd, &copy, p);
+    bcdiag_imageprops(info->format, info->type, info->tiling, info->usage, info->flags, r, &p->imageFormatProperties);
+    return r;
 }
 
 // The engine asks for the textureCompressionBC it was told about; a GPU without it would refuse the
@@ -176,6 +258,13 @@ static VkResult VKAPI_CALL createdevice_wrap(VkPhysicalDevice pd, const VkDevice
     if (g_realBc < 0) {
         PFN_vkGetPhysicalDeviceFeatures gf = g_getFeatures ? g_getFeatures : (PFN_vkGetPhysicalDeviceFeatures)real("vkGetPhysicalDeviceFeatures");
         if (gf) { VkPhysicalDeviceFeatures f; gf(pd, &f); g_realBc = f.textureCompressionBC; }
+    }
+    if (bc_convert() && g_getFormatProps) {   // the driver's answers for every converted format, asked or not
+        for (VkFormat f = VK_FORMAT_BC1_RGB_UNORM_BLOCK; f <= VK_FORMAT_BC7_SRGB_BLOCK; f++) {
+            if (!bc_substitute(f)) continue;
+            VkFormatProperties p;
+            getformatprops_wrap(pd, f, &p);
+        }
     }
     if (g_realBc != 0) return g_createDevice(pd, info, a, out);
     VkDeviceCreateInfo copy = *info;
@@ -1007,6 +1096,15 @@ static VkResult VKAPI_CALL createimage_wrap(VkDevice d, const VkImageCreateInfo*
     }
     VkResult r = g_createImage(d, shrink || sub ? &copy : info, a, out);
     if (sub && r == VK_SUCCESS) bc_track_image(*out, info->format);
+    if (sub) {
+        uint64_t key = 0x3000000000ULL ^ ((uint64_t)info->format << 40) ^ ((uint64_t)info->imageType << 36)
+                       ^ ((uint64_t)(info->arrayLayers > 1) << 35) ^ ((uint64_t)(info->mipLevels > 1) << 34)
+                       ^ ((uint64_t)info->usage << 16) ^ info->flags;
+        if (r != VK_SUCCESS || bcdiag_first(key))
+            BCDIAG("BC image format %d as %d: %ux%u x%u layers, %u mips, type %d, usage 0x%x, flags 0x%x%s: result %d",
+                   info->format, sub, info->extent.width, info->extent.height, info->arrayLayers, info->mipLevels,
+                   info->imageType, info->usage, info->flags, shrink ? " (shrunk)" : "", r);
+    }
     if (shrink) {
         pthread_mutex_lock(&g_smu);
         g_shrunkReserved--;
@@ -1092,11 +1190,19 @@ static VkResult VKAPI_CALL createview_wrap(VkDevice d, const VkImageViewCreateIn
             if (r->levelCount != VK_REMAINING_MIP_LEVELS && r->baseMipLevel + r->levelCount > g_shrunk[i].newMips)
                 r->levelCount = g_shrunk[i].newMips - r->baseMipLevel;
             pthread_mutex_unlock(&g_smu);
-            return g_createView(d, &copy, a, out);
+            VkResult vr = g_createView(d, &copy, a, out);
+            if (sub && vr != VK_SUCCESS)
+                BCDIAG("BC view format %d as %d, type %d (shrunk image): result %d", info->format, sub, info->viewType, vr);
+            return vr;
         }
         pthread_mutex_unlock(&g_smu);
     }
-    return g_createView(d, sub ? &copy : info, a, out);
+    VkResult r = g_createView(d, sub ? &copy : info, a, out);
+    if (sub && (r != VK_SUCCESS || bcdiag_first(0x4000000000ULL ^ ((uint64_t)info->format << 8) ^ info->viewType)))
+        BCDIAG("BC view format %d as %d, type %d, levels %u+%u, layers %u+%u: result %d", info->format, sub, info->viewType,
+               info->subresourceRange.baseMipLevel, info->subresourceRange.levelCount,
+               info->subresourceRange.baseArrayLayer, info->subresourceRange.layerCount, r);
+    return r;
 }
 
 // Copies: regions of old level n -> new level n-1, same offsets and extent; level 0 regions dropped.
@@ -1474,6 +1580,12 @@ static VkResult VKAPI_CALL createbuffer_wrap(VkDevice d, const VkBufferCreateInf
 static VkResult VKAPI_CALL createfb_wrap(VkDevice d, const VkFramebufferCreateInfo* info, const VkAllocationCallbacks* a, VkFramebuffer* out) {
     VkResult r = g_createFb(d, info, a, out);
     ring_add("framebuffer %ux%u x%u, %u attachments -> %d", info->width, info->height, info->layers, info->attachmentCount, r);
+    {
+        char buf[1500]; int m = 0;
+        pd_app(buf, &m, "framebuffer %llx -> %d: pass %llx %ux%u, views", (unsigned long long)*out, r, (unsigned long long)info->renderPass, info->width, info->height);
+        for (uint32_t k = 0; k < info->attachmentCount && info->pAttachments; k++) pd_app(buf, &m, " %llx", (unsigned long long)info->pAttachments[k]);
+        PDIAG("%s", buf);
+    }
     return r;
 }
 
@@ -1489,8 +1601,247 @@ static void VKAPI_CALL draw_wrap(VkCommandBuffer cb, uint32_t vc, uint32_t ic, u
     g_draw(cb, vc, ic, fv, fi);
 }
 
+
+// ---- pipeline diagnosis (2026-10-17) ----------------------------------------------------------------
+// The Architect icons of masked things (beds, bedrolls, braziers...) come out empty on Mali while the
+// same draws are fine on Adreno: RimWorld 1.7's ImGui backend draws them with a pipeline of its own
+// (the material's UI fragment shader over ImGui's vertices, plus a stride-0 binding of attribute
+// defaults). Logged so the two phones can be compared: every shader module (stage, hash, the code
+// dumped to $HOME/vk_spv/<hash>.spv), every descriptor set and pipeline layout, every graphics
+// pipeline's vertex input, raster, depth, blend and dynamic state, and the commands of the first draws
+// made with a pipeline that has a stride-0 vertex binding. RimDroid/vkpipe and $HOME/vk_pipe.log.
+static FILE* g_pdiagFile;
+static pthread_mutex_t g_pdiagMu = PTHREAD_MUTEX_INITIALIZER;
+static VkPipeline g_tracePipes[8];
+static VkPipelineLayout g_uiMatLayouts[16];   // 3 sets + 16-byte push: the ImGui material pipelines'
+static int g_tracing, g_traceBudget = 120, g_viewportLogs = 12, g_beginLogs = 40, g_uboLogs = 12;
+static unsigned g_imgLayoutSeen[16];          // image layouts seen in sampler descriptor writes
+
+__attribute__((format(printf, 1, 2)))
+static void PDIAG(const char* fmt, ...) {
+    char line[1600];
+    va_list ap;
+    va_start(ap, fmt);
+    vsnprintf(line, sizeof line, fmt, ap);
+    va_end(ap);
+    __android_log_print(ANDROID_LOG_INFO, "RimDroid/vkpipe", "%s", line);
+    pthread_mutex_lock(&g_pdiagMu);
+    if (!g_pdiagFile) {
+        const char* home = getenv("HOME");
+        char path[512];
+        snprintf(path, sizeof path, "%s/vk_pipe.log", home ? home : ".");
+        g_pdiagFile = fopen(path, "w");
+    }
+    if (g_pdiagFile) { fprintf(g_pdiagFile, "%s\n", line); fflush(g_pdiagFile); }
+    pthread_mutex_unlock(&g_pdiagMu);
+}
+
+/* Appends to a 1500-byte buffer; nothing once it is full. */
+__attribute__((format(printf, 3, 4)))
+static void pd_app(char* buf, int* m, const char* fmt, ...) {
+    if (*m < 0 || *m >= 1500 - 1) return;
+    va_list ap;
+    va_start(ap, fmt);
+    int k = vsnprintf(buf + *m, (size_t)(1500 - *m), fmt, ap);
+    va_end(ap);
+    *m = k < 0 ? 1500 : *m + k;
+}
+
+static void pdiag_dump_spv(uint32_t hash, const void* code, size_t size) {
+    const char* home = getenv("HOME");
+    char dir[512], path[600];
+    snprintf(dir, sizeof dir, "%s/vk_spv", home ? home : ".");
+    mkdir(dir, 0700);
+    snprintf(path, sizeof path, "%s/%08x.spv", dir, hash);
+    if (access(path, F_OK) == 0) return;
+    FILE* f = fopen(path, "wb");
+    if (f) { fwrite(code, 1, size, f); fclose(f); }
+}
+
+static PFN_vkCreateDescriptorSetLayout g_createDsl;
+static PFN_vkCreatePipelineLayout g_createPl;
+static PFN_vkCreateRenderPass g_createRp;
+static PFN_vkCreateSampler g_createSampler;
+static PFN_vkGetPhysicalDeviceProperties g_getProps;
+static int g_propsLogged;
+
+static VkResult VKAPI_CALL createsampler_wrap(VkDevice d, const VkSamplerCreateInfo* info, const VkAllocationCallbacks* a, VkSampler* out) {
+    VkResult r = g_createSampler(d, info, a, out);
+    PDIAG("sampler %llx -> %d: mag %d min %d mip %d address %d/%d/%d lod %g..%g bias %g aniso %d/%g compare %d border %d unnorm %d",
+          (unsigned long long)*out, r, (int)info->magFilter, (int)info->minFilter, (int)info->mipmapMode, (int)info->addressModeU, (int)info->addressModeV,
+          (int)info->addressModeW, info->minLod, info->maxLod, info->mipLodBias, (int)info->anisotropyEnable, info->maxAnisotropy, (int)info->compareEnable,
+          (int)info->borderColor, (int)info->unnormalizedCoordinates);
+    return r;
+}
+
+static void VKAPI_CALL getprops_wrap(VkPhysicalDevice pd, VkPhysicalDeviceProperties* p) {
+    g_getProps(pd, p);
+    if (!g_propsLogged) {
+        g_propsLogged = 1;
+        PDIAG("device '%s' api %u.%u.%u driver 0x%x: minUboAlign %llu minSsboAlign %llu nonCoherentAtom %llu maxPush %u maxSets %u maxVertexStride %u maxViewports %u",
+              p->deviceName, VK_VERSION_MAJOR(p->apiVersion), VK_VERSION_MINOR(p->apiVersion), VK_VERSION_PATCH(p->apiVersion), p->driverVersion,
+              (unsigned long long)p->limits.minUniformBufferOffsetAlignment, (unsigned long long)p->limits.minStorageBufferOffsetAlignment,
+              (unsigned long long)p->limits.nonCoherentAtomSize, p->limits.maxPushConstantsSize, p->limits.maxBoundDescriptorSets,
+              p->limits.maxVertexInputBindingStride, p->limits.maxViewports);
+    }
+}
+static PFN_vkCreateRenderPass2 g_createRp2;
+static PFN_vkCmdBeginRenderPass g_beginRp;
+static PFN_vkCmdBeginRenderPass2 g_beginRp2;
+static PFN_vkCmdEndRenderPass g_endRp;
+
+static VkResult VKAPI_CALL createrp_wrap(VkDevice d, const VkRenderPassCreateInfo* info, const VkAllocationCallbacks* a, VkRenderPass* out) {
+    VkResult r = g_createRp(d, info, a, out);
+    char buf[1500]; int m = 0;
+    pd_app(buf, &m, "render pass %llx -> %d: %u attachments", (unsigned long long)*out, r, info->attachmentCount);
+    for (uint32_t k = 0; k < info->attachmentCount; k++) {
+        const VkAttachmentDescription* at = &info->pAttachments[k];
+        pd_app(buf, &m, " [%u: fmt %d samples %d load %d store %d layout %d->%d]", k, (int)at->format, (int)at->samples, (int)at->loadOp, (int)at->storeOp, (int)at->initialLayout, (int)at->finalLayout);
+    }
+    for (uint32_t sp = 0; sp < info->subpassCount; sp++) {
+        const VkSubpassDescription* su = &info->pSubpasses[sp];
+        pd_app(buf, &m, "; subpass %u color", sp);
+        for (uint32_t c = 0; c < su->colorAttachmentCount; c++) pd_app(buf, &m, " %d(l%d)", (int)su->pColorAttachments[c].attachment, (int)su->pColorAttachments[c].layout);
+        if (su->pDepthStencilAttachment) pd_app(buf, &m, " depth %d(l%d)", (int)su->pDepthStencilAttachment->attachment, (int)su->pDepthStencilAttachment->layout);
+        if (su->pResolveAttachments) pd_app(buf, &m, " resolve");
+    }
+    PDIAG("%s", buf);
+    return r;
+}
+
+static VkResult VKAPI_CALL createrp2_wrap(VkDevice d, const VkRenderPassCreateInfo2* info, const VkAllocationCallbacks* a, VkRenderPass* out) {
+    VkResult r = g_createRp2(d, info, a, out);
+    char buf[1500]; int m = 0;
+    pd_app(buf, &m, "render pass2 %llx -> %d: %u attachments", (unsigned long long)*out, r, info->attachmentCount);
+    for (uint32_t k = 0; k < info->attachmentCount; k++) {
+        const VkAttachmentDescription2* at = &info->pAttachments[k];
+        pd_app(buf, &m, " [%u: fmt %d samples %d load %d store %d layout %d->%d]", k, (int)at->format, (int)at->samples, (int)at->loadOp, (int)at->storeOp, (int)at->initialLayout, (int)at->finalLayout);
+    }
+    for (uint32_t sp = 0; sp < info->subpassCount; sp++) {
+        const VkSubpassDescription2* su = &info->pSubpasses[sp];
+        pd_app(buf, &m, "; subpass %u color", sp);
+        for (uint32_t c = 0; c < su->colorAttachmentCount; c++) pd_app(buf, &m, " %d(l%d)", (int)su->pColorAttachments[c].attachment, (int)su->pColorAttachments[c].layout);
+        if (su->pDepthStencilAttachment) pd_app(buf, &m, " depth %d(l%d)", (int)su->pDepthStencilAttachment->attachment, (int)su->pDepthStencilAttachment->layout);
+    }
+    PDIAG("%s", buf);
+    return r;
+}
+
+static void VKAPI_CALL beginrp_wrap(VkCommandBuffer cb, const VkRenderPassBeginInfo* info, VkSubpassContents c) {
+    if (g_beginLogs > 0 || g_tracing) {
+        if (!g_tracing) g_beginLogs--;
+        PDIAG("cmd %llx: begin render pass %llx framebuffer %llx area %d,%d %ux%u, %u clears", (unsigned long long)cb, (unsigned long long)info->renderPass,
+              (unsigned long long)info->framebuffer, info->renderArea.offset.x, info->renderArea.offset.y, info->renderArea.extent.width, info->renderArea.extent.height, info->clearValueCount);
+    }
+    g_beginRp(cb, info, c);
+}
+
+static void VKAPI_CALL beginrp2_wrap(VkCommandBuffer cb, const VkRenderPassBeginInfo* info, const VkSubpassBeginInfo* sb) {
+    if (g_beginLogs > 0 || g_tracing) {
+        if (!g_tracing) g_beginLogs--;
+        PDIAG("cmd %llx: begin render pass2 %llx framebuffer %llx area %d,%d %ux%u", (unsigned long long)cb, (unsigned long long)info->renderPass,
+              (unsigned long long)info->framebuffer, info->renderArea.offset.x, info->renderArea.offset.y, info->renderArea.extent.width, info->renderArea.extent.height);
+    }
+    g_beginRp2(cb, info, sb);
+}
+
+static void VKAPI_CALL endrp_wrap(VkCommandBuffer cb) {
+    if (g_tracing) { PDIAG("cmd %llx: end render pass", (unsigned long long)cb); g_tracing = 0; }
+    g_endRp(cb);
+}
+static PFN_vkCmdBindPipeline g_bindPipeline;
+static PFN_vkCmdPushConstants g_pushConstants;
+static PFN_vkCmdBindDescriptorSets g_bindSets;
+static PFN_vkCmdBindVertexBuffers g_bindVbs;
+static PFN_vkCmdSetViewport g_setViewport;
+static PFN_vkCmdSetScissor g_setScissor;
+
+static VkResult VKAPI_CALL dsl_wrap(VkDevice d, const VkDescriptorSetLayoutCreateInfo* info, const VkAllocationCallbacks* a, VkDescriptorSetLayout* out) {
+    VkResult r = g_createDsl(d, info, a, out);
+    char buf[1500]; int m = 0;
+    pd_app(buf, &m, "set layout %llx (flags 0x%x, %u bindings):", (unsigned long long)*out, info->flags, info->bindingCount);
+    for (uint32_t k = 0; k < info->bindingCount; k++) {
+        const VkDescriptorSetLayoutBinding* b = &info->pBindings[k];
+        pd_app(buf, &m, " [b%u type %d x%u stages 0x%x]", b->binding, (int)b->descriptorType, b->descriptorCount, b->stageFlags);
+    }
+    PDIAG("%s -> %d", buf, r);
+    return r;
+}
+
+static VkResult VKAPI_CALL pl_wrap(VkDevice d, const VkPipelineLayoutCreateInfo* info, const VkAllocationCallbacks* a, VkPipelineLayout* out) {
+    VkResult r = g_createPl(d, info, a, out);
+    char buf[1500]; int m = 0;
+    pd_app(buf, &m, "pipeline layout %llx: sets", (unsigned long long)*out);
+    for (uint32_t k = 0; k < info->setLayoutCount; k++) pd_app(buf, &m, " %llx", (unsigned long long)info->pSetLayouts[k]);
+    pd_app(buf, &m, "; push");
+    for (uint32_t k = 0; k < info->pushConstantRangeCount; k++)
+        pd_app(buf, &m, " [stages 0x%x off %u size %u]", info->pPushConstantRanges[k].stageFlags, info->pPushConstantRanges[k].offset, info->pPushConstantRanges[k].size);
+    if (r == VK_SUCCESS && info->setLayoutCount == 3 && info->pushConstantRangeCount == 1 && info->pPushConstantRanges[0].size == 16) {
+        pthread_mutex_lock(&g_pdiagMu);
+        for (int t = 0; t < 16; t++) if (!g_uiMatLayouts[t]) { g_uiMatLayouts[t] = *out; break; }
+        pthread_mutex_unlock(&g_pdiagMu);
+        pd_app(buf, &m, " (UI material)");
+    }
+    PDIAG("%s -> %d", buf, r);
+    return r;
+}
+
+static void VKAPI_CALL bindpipeline_wrap(VkCommandBuffer cb, VkPipelineBindPoint bp, VkPipeline p) {
+    int traced = 0;
+    for (int t = 0; t < 8; t++) if (g_tracePipes[t] && g_tracePipes[t] == p) traced = 1;
+    if (traced && g_traceBudget > 0) { g_tracing = 1; PDIAG("cmd %llx: bind pipeline %llx (traced)", (unsigned long long)cb, (unsigned long long)p); }
+    else { if (g_tracing) PDIAG("cmd %llx: bind pipeline %llx (other)", (unsigned long long)cb, (unsigned long long)p); g_tracing = 0; }
+    g_bindPipeline(cb, bp, p);
+}
+
+static void VKAPI_CALL pushconstants_wrap(VkCommandBuffer cb, VkPipelineLayout l, VkShaderStageFlags st, uint32_t off, uint32_t size, const void* v) {
+    if (g_tracing) {
+        char buf[1500]; int m = 0;
+        pd_app(buf, &m, "cmd %llx: push layout %llx stages 0x%x off %u size %u:", (unsigned long long)cb, (unsigned long long)l, st, off, size);
+        const float* f = (const float*)v;
+        for (uint32_t k = 0; k < size / 4 && k < 16; k++) pd_app(buf, &m, " %g", f[k]);
+        PDIAG("%s", buf);
+    }
+    g_pushConstants(cb, l, st, off, size, v);
+}
+
+static void VKAPI_CALL bindsets_wrap(VkCommandBuffer cb, VkPipelineBindPoint bp, VkPipelineLayout l, uint32_t first, uint32_t n, const VkDescriptorSet* sets, uint32_t dn, const uint32_t* doff) {
+    if (g_tracing) {
+        char buf[1500]; int m = 0;
+        pd_app(buf, &m, "cmd %llx: bind sets layout %llx first %u count %u:", (unsigned long long)cb, (unsigned long long)l, first, n);
+        for (uint32_t k = 0; k < n; k++) pd_app(buf, &m, " %llx", (unsigned long long)sets[k]);
+        for (uint32_t k = 0; k < dn; k++) pd_app(buf, &m, " dyn%u", doff[k]);
+        PDIAG("%s", buf);
+    }
+    g_bindSets(cb, bp, l, first, n, sets, dn, doff);
+}
+
+static void VKAPI_CALL bindvbs_wrap(VkCommandBuffer cb, uint32_t first, uint32_t n, const VkBuffer* b, const VkDeviceSize* off) {
+    if (g_tracing) {
+        char buf[1500]; int m = 0;
+        pd_app(buf, &m, "cmd %llx: bind vertex buffers first %u count %u:", (unsigned long long)cb, first, n);
+        for (uint32_t k = 0; k < n; k++) pd_app(buf, &m, " %llx+%llu", (unsigned long long)b[k], (unsigned long long)off[k]);
+        PDIAG("%s", buf);
+    }
+    g_bindVbs(cb, first, n, b, off);
+}
+
+static void VKAPI_CALL setviewport_wrap(VkCommandBuffer cb, uint32_t first, uint32_t n, const VkViewport* v) {
+    if ((g_tracing || g_viewportLogs > 0) && n) {
+        if (!g_tracing) g_viewportLogs--;
+        PDIAG("cmd %llx: viewport %g %g %g %g depth %g..%g", (unsigned long long)cb, v[0].x, v[0].y, v[0].width, v[0].height, v[0].minDepth, v[0].maxDepth);
+    }
+    g_setViewport(cb, first, n, v);
+}
+
+static void VKAPI_CALL setscissor_wrap(VkCommandBuffer cb, uint32_t first, uint32_t n, const VkRect2D* r) {
+    if (g_tracing && n) PDIAG("cmd %llx: scissor %d %d %u %u", (unsigned long long)cb, r[0].offset.x, r[0].offset.y, r[0].extent.width, r[0].extent.height);
+    g_setScissor(cb, first, n, r);
+}
+
 static void VKAPI_CALL drawindexed_wrap(VkCommandBuffer cb, uint32_t ic, uint32_t inst, uint32_t fi, int32_t vo, uint32_t fin) {
     __atomic_add_fetch(&g_draws, 1, __ATOMIC_RELAXED);
+    if (g_tracing && g_traceBudget > 0) { g_traceBudget--; PDIAG("cmd %llx: drawIndexed %u x %u first %u vtxoff %d firstInst %u", (unsigned long long)cb, ic, inst, fi, vo, fin); }
     if (ic > (16u << 20) || inst > 200000) ring_add("drawIndexed %u indices x %u instances", ic, inst);
     g_drawIndexed(cb, ic, inst, fi, vo, fin);
 }
@@ -1517,6 +1868,21 @@ static unsigned g_shaderModules;
 static void VKAPI_CALL updatesets_wrap(VkDevice d, uint32_t nw, const VkWriteDescriptorSet* w, uint32_t nc, const VkCopyDescriptorSet* c) {
     for (uint32_t i = 0; i < nw; i++) {
         const VkWriteDescriptorSet* x = &w[i];
+        if (x->descriptorType == VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER && x->pImageInfo) {
+            for (uint32_t j = 0; j < x->descriptorCount; j++) {
+                unsigned l = (unsigned)x->pImageInfo[j].imageLayout;
+                if (l < 16 && !g_imgLayoutSeen[l]) {
+                    g_imgLayoutSeen[l] = 1;
+                    PDIAG("descriptor write: first sampler descriptor with image layout %u: set %llx binding %u view %llx sampler %llx", l,
+                          (unsigned long long)x->dstSet, x->dstBinding, (unsigned long long)x->pImageInfo[j].imageView, (unsigned long long)x->pImageInfo[j].sampler);
+                }
+            }
+        }
+        if (x->descriptorType == VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER && x->pBufferInfo && g_uiMatLayouts[0] && g_uboLogs > 0) {
+            g_uboLogs--;
+            PDIAG("descriptor write: UBO set %llx binding %u buffer %llx offset %llu range %llu", (unsigned long long)x->dstSet, x->dstBinding,
+                  (unsigned long long)x->pBufferInfo[0].buffer, (unsigned long long)x->pBufferInfo[0].offset, (unsigned long long)x->pBufferInfo[0].range);
+        }
         unsigned nulls = 0;
         switch (x->descriptorType) {
             case VK_DESCRIPTOR_TYPE_SAMPLER:
@@ -1543,6 +1909,77 @@ static void VKAPI_CALL updatesets_wrap(VkDevice d, uint32_t nw, const VkWriteDes
     g_updateSets(d, nw, w, nc, c);
 }
 
+// ---- Mali: empty icons of masked things (2026-10-17) ------------------------------------------------
+// RimWorld 1.7 draws the Architect icons of things tinted through a mask (beds, bedrolls, cribs,
+// braziers, drapes...) with ImGui's vertex shader in front of the material's UI fragment shader
+// (CutoutComplexUI). ImGui's shader writes colour and UV as ONE struct output at location 0
+// ("Out { vec4 Color; vec2 UV; }"), the material's reads two plain inputs (vColor at 0, vUv at 1).
+// Vulkan only matches a struct with the same struct; Adreno lays it out anyway, Mali's driver hands
+// the fragment shader nothing, the UV is 0 and the icon samples one transparent corner texel. For
+// such pipelines the vertex stage becomes the same shader with the two outputs declared separately
+// (SPIR-V of the GLSL below, glslc -O, vulkan1.0); ImGui's own pipelines keep their struct pair.
+//   layout(location=0) in vec2 aPos; layout(location=1) in vec2 aUV; layout(location=2) in vec4 aColor;
+//   layout(push_constant) uniform uPushConstant { vec2 uScale; vec2 uTranslate; } pc;
+//   layout(location=0) out vec4 oColor; layout(location=1) out vec2 oUV;
+//   void main() { oColor = aColor; oUV = aUV; gl_Position = vec4(aPos * pc.uScale + pc.uTranslate, 0.0, 1.0); }
+static const uint32_t kFlatImguiVs[] = {
+    0x07230203u, 0x00010000u, 0x000d000au, 0x0000002eu, 0x00000000u, 0x00020011u,
+    0x00000001u, 0x0006000bu, 0x00000001u, 0x4c534c47u, 0x6474732eu, 0x3035342eu,
+    0x00000000u, 0x0003000eu, 0x00000000u, 0x00000001u, 0x000b000fu, 0x00000000u,
+    0x00000004u, 0x6e69616du, 0x00000000u, 0x00000009u, 0x0000000bu, 0x0000000fu,
+    0x00000011u, 0x00000018u, 0x0000001bu, 0x00040047u, 0x00000009u, 0x0000001eu,
+    0x00000000u, 0x00040047u, 0x0000000bu, 0x0000001eu, 0x00000002u, 0x00040047u,
+    0x0000000fu, 0x0000001eu, 0x00000001u, 0x00040047u, 0x00000011u, 0x0000001eu,
+    0x00000001u, 0x00050048u, 0x00000016u, 0x00000000u, 0x0000000bu, 0x00000000u,
+    0x00050048u, 0x00000016u, 0x00000001u, 0x0000000bu, 0x00000001u, 0x00050048u,
+    0x00000016u, 0x00000002u, 0x0000000bu, 0x00000003u, 0x00050048u, 0x00000016u,
+    0x00000003u, 0x0000000bu, 0x00000004u, 0x00030047u, 0x00000016u, 0x00000002u,
+    0x00040047u, 0x0000001bu, 0x0000001eu, 0x00000000u, 0x00050048u, 0x0000001du,
+    0x00000000u, 0x00000023u, 0x00000000u, 0x00050048u, 0x0000001du, 0x00000001u,
+    0x00000023u, 0x00000008u, 0x00030047u, 0x0000001du, 0x00000002u, 0x00020013u,
+    0x00000002u, 0x00030021u, 0x00000003u, 0x00000002u, 0x00030016u, 0x00000006u,
+    0x00000020u, 0x00040017u, 0x00000007u, 0x00000006u, 0x00000004u, 0x00040020u,
+    0x00000008u, 0x00000003u, 0x00000007u, 0x0004003bu, 0x00000008u, 0x00000009u,
+    0x00000003u, 0x00040020u, 0x0000000au, 0x00000001u, 0x00000007u, 0x0004003bu,
+    0x0000000au, 0x0000000bu, 0x00000001u, 0x00040017u, 0x0000000du, 0x00000006u,
+    0x00000002u, 0x00040020u, 0x0000000eu, 0x00000003u, 0x0000000du, 0x0004003bu,
+    0x0000000eu, 0x0000000fu, 0x00000003u, 0x00040020u, 0x00000010u, 0x00000001u,
+    0x0000000du, 0x0004003bu, 0x00000010u, 0x00000011u, 0x00000001u, 0x00040015u,
+    0x00000013u, 0x00000020u, 0x00000000u, 0x0004002bu, 0x00000013u, 0x00000014u,
+    0x00000001u, 0x0004001cu, 0x00000015u, 0x00000006u, 0x00000014u, 0x0006001eu,
+    0x00000016u, 0x00000007u, 0x00000006u, 0x00000015u, 0x00000015u, 0x00040020u,
+    0x00000017u, 0x00000003u, 0x00000016u, 0x0004003bu, 0x00000017u, 0x00000018u,
+    0x00000003u, 0x00040015u, 0x00000019u, 0x00000020u, 0x00000001u, 0x0004002bu,
+    0x00000019u, 0x0000001au, 0x00000000u, 0x0004003bu, 0x00000010u, 0x0000001bu,
+    0x00000001u, 0x0004001eu, 0x0000001du, 0x0000000du, 0x0000000du, 0x00040020u,
+    0x0000001eu, 0x00000009u, 0x0000001du, 0x0004003bu, 0x0000001eu, 0x0000001fu,
+    0x00000009u, 0x00040020u, 0x00000020u, 0x00000009u, 0x0000000du, 0x0004002bu,
+    0x00000019u, 0x00000024u, 0x00000001u, 0x0004002bu, 0x00000006u, 0x00000028u,
+    0x00000000u, 0x0004002bu, 0x00000006u, 0x00000029u, 0x3f800000u, 0x00050036u,
+    0x00000002u, 0x00000004u, 0x00000000u, 0x00000003u, 0x000200f8u, 0x00000005u,
+    0x0004003du, 0x00000007u, 0x0000000cu, 0x0000000bu, 0x0003003eu, 0x00000009u,
+    0x0000000cu, 0x0004003du, 0x0000000du, 0x00000012u, 0x00000011u, 0x0003003eu,
+    0x0000000fu, 0x00000012u, 0x0004003du, 0x0000000du, 0x0000001cu, 0x0000001bu,
+    0x00050041u, 0x00000020u, 0x00000021u, 0x0000001fu, 0x0000001au, 0x0004003du,
+    0x0000000du, 0x00000022u, 0x00000021u, 0x00050041u, 0x00000020u, 0x00000025u,
+    0x0000001fu, 0x00000024u, 0x0004003du, 0x0000000du, 0x00000026u, 0x00000025u,
+    0x0008000cu, 0x0000000du, 0x00000027u, 0x00000001u, 0x00000032u, 0x0000001cu,
+    0x00000022u, 0x00000026u, 0x00050051u, 0x00000006u, 0x0000002au, 0x00000027u,
+    0x00000000u, 0x00050051u, 0x00000006u, 0x0000002bu, 0x00000027u, 0x00000001u,
+    0x00070050u, 0x00000007u, 0x0000002cu, 0x0000002au, 0x0000002bu, 0x00000028u,
+    0x00000029u, 0x00050041u, 0x00000008u, 0x0000002du, 0x00000018u, 0x0000001au,
+    0x0003003eu, 0x0000002du, 0x0000002cu, 0x000100fdu, 0x00010038u
+};
+#define IMGUI_VS_HASH 0x09c72260u   /* FNV-1a of ImGui's vertex SPIR-V in RimWorld.dll (1296 bytes) */
+#define IMGUI_FS_HASH 0xa54df87eu   /* ImGui's fragment shader (772 bytes) */
+static VkShaderModule g_imguiVs[8], g_imguiFs[8], g_flatVs;
+static pthread_mutex_t g_imguiMu = PTHREAD_MUTEX_INITIALIZER;
+
+static int module_in(VkShaderModule m, VkShaderModule* set) {
+    for (int k = 0; k < 8; k++) if (set[k] && set[k] == m) return 1;
+    return 0;
+}
+
 // Every shader module: its size, whether it starts with the SPIR-V magic word, and how many
 // instructions it holds (garbage or empty code from a failed compile is the one thing that makes a
 // GPU die without any API error). Logged once the game is up (the first ~260 are the pack's).
@@ -1555,6 +1992,29 @@ static VkResult VKAPI_CALL shadermodule_wrap(VkDevice d, const VkShaderModuleCre
         ring_add("shader module #%u: %u bytes, magic 0x%08x%s, bound %u -> %d", n, (unsigned)info->codeSize, magic,
                  bad ? " (NOT SPIR-V)" : "", bound, r);
         if (bad) MLOG("shader module #%u is NOT valid SPIR-V: %u bytes, first word 0x%08x", n, (unsigned)info->codeSize, magic);
+    }
+    if (r == VK_SUCCESS && !bad) {
+        uint32_t h = 2166136261u;
+        const uint8_t* p = (const uint8_t*)info->pCode;
+        for (size_t k = 0; k < info->codeSize; k++) { h ^= p[k]; h *= 16777619u; }
+        const uint32_t* w = info->pCode;
+        size_t nw = info->codeSize / 4;
+        int model = -1;
+        for (size_t k = 5; k < nw; ) {   // OpEntryPoint (15): execution model 0 vertex, 4 fragment, 5 compute
+            uint32_t len = w[k] >> 16, op = w[k] & 0xffff;
+            if (!len) break;
+            if (op == 15 && k + 1 < nw) { model = (int)w[k + 1]; break; }
+            k += len;
+        }
+        PDIAG("shader module %llx: %u bytes, stage %s, hash %08x", (unsigned long long)*out, (unsigned)info->codeSize,
+              model == 0 ? "vertex" : model == 4 ? "fragment" : model == 5 ? "compute" : "other", h);
+        pdiag_dump_spv(h, info->pCode, info->codeSize);
+        if (h == IMGUI_VS_HASH || h == IMGUI_FS_HASH) {
+            VkShaderModule* set = h == IMGUI_VS_HASH ? g_imguiVs : g_imguiFs;
+            pthread_mutex_lock(&g_imguiMu);
+            for (int k = 0; k < 8; k++) if (!set[k]) { set[k] = *out; break; }
+            pthread_mutex_unlock(&g_imguiMu);
+        }
     }
     return r;
 }
@@ -1595,7 +2055,44 @@ static VkResult VKAPI_CALL map_wrap(VkDevice d, VkDeviceMemory m, VkDeviceSize o
 
 static VkResult VKAPI_CALL gfxpipes_wrap(VkDevice d, VkPipelineCache c, uint32_t n, const VkGraphicsPipelineCreateInfo* i, const VkAllocationCallbacks* a, VkPipeline* p) {
     unsigned total = __atomic_add_fetch(&g_pipelines, n, __ATOMIC_RELAXED);
-    VkResult r = g_gfxPipes(d, c, n, i, a, p);
+    // ImGui's vertex shader in front of a fragment shader that is not ImGui's: the flat-output copy
+    // (see kFlatImguiVs). The caller's create infos stay as they are; copies go to the driver.
+    VkGraphicsPipelineCreateInfo* fixedInfos = NULL;
+    VkPipelineShaderStageCreateInfo* fixedStages = NULL;
+    if (g_imguiVs[0]) {
+        for (uint32_t k = 0; k < n; k++) {
+            const VkGraphicsPipelineCreateInfo* g = &i[k];
+            int vsAt = -1, fsForeign = 0;
+            for (uint32_t st = 0; st < g->stageCount; st++) {
+                if (g->pStages[st].stage == VK_SHADER_STAGE_VERTEX_BIT && module_in(g->pStages[st].module, g_imguiVs)) vsAt = (int)st;
+                if (g->pStages[st].stage == VK_SHADER_STAGE_FRAGMENT_BIT && !module_in(g->pStages[st].module, g_imguiFs)) fsForeign = 1;
+            }
+            if (vsAt < 0 || !fsForeign) continue;
+            pthread_mutex_lock(&g_imguiMu);
+            if (!g_flatVs) {
+                VkShaderModuleCreateInfo mi = { VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO, NULL, 0, sizeof kFlatImguiVs, kFlatImguiVs };
+                if (g_shaderModule(d, &mi, NULL, &g_flatVs) != VK_SUCCESS) g_flatVs = VK_NULL_HANDLE;
+                LOGI("flat-output ImGui vertex shader for material UI draws: %s", g_flatVs ? "created" : "FAILED");
+            }
+            VkShaderModule flat = g_flatVs;
+            pthread_mutex_unlock(&g_imguiMu);
+            if (!flat) break;
+            if (!fixedInfos) {
+                fixedInfos = (VkGraphicsPipelineCreateInfo*)malloc(n * sizeof *fixedInfos);
+                fixedStages = (VkPipelineShaderStageCreateInfo*)malloc(n * 8 * sizeof *fixedStages);
+                if (!fixedInfos || !fixedStages) { free(fixedInfos); free(fixedStages); fixedInfos = NULL; fixedStages = NULL; break; }
+                memcpy(fixedInfos, i, n * sizeof *fixedInfos);
+            }
+            if (g->stageCount > 8) continue;
+            memcpy(&fixedStages[k * 8], g->pStages, g->stageCount * sizeof *fixedStages);
+            fixedStages[k * 8 + vsAt].module = flat;
+            fixedInfos[k].pStages = &fixedStages[k * 8];
+            PDIAG("pipeline #%u: material UI draw, vertex stage -> flat-output ImGui shader", total - n + k + 1);
+        }
+    }
+    VkResult r = g_gfxPipes(d, c, n, fixedInfos ? fixedInfos : i, a, p);
+    free(fixedInfos);
+    free(fixedStages);
     for (uint32_t k = 0; k < n && k < 4; k++) {
         const VkGraphicsPipelineCreateInfo* g = &i[k];
         uint64_t vs = 0, fs = 0;
@@ -1608,6 +2105,52 @@ static VkResult VKAPI_CALL gfxpipes_wrap(VkDevice d, VkPipelineCache c, uint32_t
                  (unsigned long long)vs, (unsigned long long)fs, cb ? cb->attachmentCount : 0,
                  cb && cb->attachmentCount && cb->pAttachments && cb->pAttachments[0].blendEnable ? "on" : "off",
                  g->pInputAssemblyState ? (int)g->pInputAssemblyState->topology : -1);
+    }
+    for (uint32_t k = 0; k < n; k++) {
+        const VkGraphicsPipelineCreateInfo* g = &i[k];
+        char buf[1500]; int m = 0; int stride0 = 0;
+        pd_app(buf, &m, "pipeline %llx -> %d: layout %llx pass %llx sub %u; stages", (unsigned long long)p[k], r,
+               (unsigned long long)g->layout, (unsigned long long)g->renderPass, g->subpass);
+        for (uint32_t s = 0; s < g->stageCount; s++)
+            pd_app(buf, &m, " [0x%x %llx %s]", g->pStages[s].stage, (unsigned long long)g->pStages[s].module, g->pStages[s].pName ? g->pStages[s].pName : "?");
+        const VkPipelineVertexInputStateCreateInfo* vi = g->pVertexInputState;
+        if (vi) {
+            pd_app(buf, &m, "; bindings");
+            for (uint32_t b = 0; b < vi->vertexBindingDescriptionCount; b++) {
+                const VkVertexInputBindingDescription* vb = &vi->pVertexBindingDescriptions[b];
+                pd_app(buf, &m, " [b%u stride %u rate %d]", vb->binding, vb->stride, (int)vb->inputRate);
+                if (vb->stride == 0) stride0 = 1;
+            }
+            pd_app(buf, &m, " attrs");
+            for (uint32_t at = 0; at < vi->vertexAttributeDescriptionCount; at++) {
+                const VkVertexInputAttributeDescription* va = &vi->pVertexAttributeDescriptions[at];
+                pd_app(buf, &m, " [loc%u b%u fmt %d off %u]", va->location, va->binding, (int)va->format, va->offset);
+            }
+        }
+        const VkPipelineRasterizationStateCreateInfo* rs = g->pRasterizationState;
+        if (rs) pd_app(buf, &m, "; raster cull %u front %d poly %d clamp %d discard %d", rs->cullMode, (int)rs->frontFace, (int)rs->polygonMode, (int)rs->depthClampEnable, (int)rs->rasterizerDiscardEnable);
+        const VkPipelineDepthStencilStateCreateInfo* ds = g->pDepthStencilState;
+        if (ds) pd_app(buf, &m, "; depth test %d write %d op %d stencil %d", (int)ds->depthTestEnable, (int)ds->depthWriteEnable, (int)ds->depthCompareOp, (int)ds->stencilTestEnable);
+        const VkPipelineMultisampleStateCreateInfo* ms = g->pMultisampleState;
+        if (ms) pd_app(buf, &m, "; samples %d", (int)ms->rasterizationSamples);
+        const VkPipelineColorBlendStateCreateInfo* cb = g->pColorBlendState;
+        if (cb) for (uint32_t at = 0; at < cb->attachmentCount && at < 2; at++) {
+            const VkPipelineColorBlendAttachmentState* ba = &cb->pAttachments[at];
+            pd_app(buf, &m, "; blend%u %d src %d dst %d op %d asrc %d adst %d mask 0x%x", at, (int)ba->blendEnable, (int)ba->srcColorBlendFactor,
+                   (int)ba->dstColorBlendFactor, (int)ba->colorBlendOp, (int)ba->srcAlphaBlendFactor, (int)ba->dstAlphaBlendFactor, ba->colorWriteMask);
+        }
+        const VkPipelineDynamicStateCreateInfo* dy = g->pDynamicState;
+        if (dy) { pd_app(buf, &m, "; dynamic"); for (uint32_t x = 0; x < dy->dynamicStateCount; x++) pd_app(buf, &m, " %d", (int)dy->pDynamicStates[x]); }
+        const VkPipelineViewportStateCreateInfo* vp = g->pViewportState;
+        if (vp) pd_app(buf, &m, "; viewports %u scissors %u", vp->viewportCount, vp->scissorCount);
+        for (int t = 0; t < 16; t++) if (g_uiMatLayouts[t] && g_uiMatLayouts[t] == g->layout) stride0 = 1;
+        if (stride0 && r == VK_SUCCESS) {
+            pthread_mutex_lock(&g_pdiagMu);
+            for (int t = 0; t < 8; t++) if (!g_tracePipes[t]) { g_tracePipes[t] = p[k]; break; }
+            pthread_mutex_unlock(&g_pdiagMu);
+            pd_app(buf, &m, "; TRACED");
+        }
+        PDIAG("%s", buf);
     }
     return r;
 }
@@ -1691,6 +2234,21 @@ static PFN_vkVoidFunction hook(const char* name, PFN_vkVoidFunction f) {
     if (!strcmp(name, "vkQueueSubmit")) { g_submit = (PFN_vkQueueSubmit)f; return (PFN_vkVoidFunction)submit_wrap; }
     if (!strcmp(name, "vkUpdateDescriptorSets")) { g_updateSets = (PFN_vkUpdateDescriptorSets)f; return (PFN_vkVoidFunction)updatesets_wrap; }
     if (!strcmp(name, "vkCreateShaderModule")) { g_shaderModule = (PFN_vkCreateShaderModule)f; return (PFN_vkVoidFunction)shadermodule_wrap; }
+    if (!strcmp(name, "vkCreateDescriptorSetLayout")) { g_createDsl = (PFN_vkCreateDescriptorSetLayout)f; return (PFN_vkVoidFunction)dsl_wrap; }
+    if (!strcmp(name, "vkCreatePipelineLayout")) { g_createPl = (PFN_vkCreatePipelineLayout)f; return (PFN_vkVoidFunction)pl_wrap; }
+    if (!strcmp(name, "vkCmdBindPipeline")) { g_bindPipeline = (PFN_vkCmdBindPipeline)f; return (PFN_vkVoidFunction)bindpipeline_wrap; }
+    if (!strcmp(name, "vkCmdPushConstants")) { g_pushConstants = (PFN_vkCmdPushConstants)f; return (PFN_vkVoidFunction)pushconstants_wrap; }
+    if (!strcmp(name, "vkCmdBindDescriptorSets")) { g_bindSets = (PFN_vkCmdBindDescriptorSets)f; return (PFN_vkVoidFunction)bindsets_wrap; }
+    if (!strcmp(name, "vkCmdBindVertexBuffers")) { g_bindVbs = (PFN_vkCmdBindVertexBuffers)f; return (PFN_vkVoidFunction)bindvbs_wrap; }
+    if (!strcmp(name, "vkCmdSetViewport")) { g_setViewport = (PFN_vkCmdSetViewport)f; return (PFN_vkVoidFunction)setviewport_wrap; }
+    if (!strcmp(name, "vkCmdSetScissor")) { g_setScissor = (PFN_vkCmdSetScissor)f; return (PFN_vkVoidFunction)setscissor_wrap; }
+    if (!strcmp(name, "vkCreateRenderPass")) { g_createRp = (PFN_vkCreateRenderPass)f; return (PFN_vkVoidFunction)createrp_wrap; }
+    if (!strcmp(name, "vkCreateSampler")) { g_createSampler = (PFN_vkCreateSampler)f; return (PFN_vkVoidFunction)createsampler_wrap; }
+    if (!strcmp(name, "vkGetPhysicalDeviceProperties")) { g_getProps = (PFN_vkGetPhysicalDeviceProperties)f; return (PFN_vkVoidFunction)getprops_wrap; }
+    if (!strcmp(name, "vkCreateRenderPass2") || !strcmp(name, "vkCreateRenderPass2KHR")) { g_createRp2 = (PFN_vkCreateRenderPass2)f; return (PFN_vkVoidFunction)createrp2_wrap; }
+    if (!strcmp(name, "vkCmdBeginRenderPass")) { g_beginRp = (PFN_vkCmdBeginRenderPass)f; return (PFN_vkVoidFunction)beginrp_wrap; }
+    if (!strcmp(name, "vkCmdBeginRenderPass2") || !strcmp(name, "vkCmdBeginRenderPass2KHR")) { g_beginRp2 = (PFN_vkCmdBeginRenderPass2)f; return (PFN_vkVoidFunction)beginrp2_wrap; }
+    if (!strcmp(name, "vkCmdEndRenderPass")) { g_endRp = (PFN_vkCmdEndRenderPass)f; return (PFN_vkVoidFunction)endrp_wrap; }
     if (!strcmp(name, "vkQueueSubmit2") || !strcmp(name, "vkQueueSubmit2KHR")) { g_submit2 = (PFN_vkQueueSubmit2)f; return (PFN_vkVoidFunction)submit2_wrap; }
     if (!strcmp(name, "vkWaitForFences")) { g_waitFences = (PFN_vkWaitForFences)f; return (PFN_vkVoidFunction)waitfences_wrap; }
     if (!strcmp(name, "vkDeviceWaitIdle")) { g_waitIdle = (PFN_vkDeviceWaitIdle)f; return (PFN_vkVoidFunction)waitidle_wrap; }

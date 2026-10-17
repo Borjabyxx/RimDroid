@@ -69,14 +69,26 @@
                     android:text="@string/mods_sort"
                     android:textSize="12sp" />
 
+                <!-- Enable / disable every mod shown (all of them, or what the search leaves):
+                     players load 150 mods at once. -->
                 <com.google.android.material.button.MaterialButton
-                    android:id="@+id/btn_mods_install"
-                    style="@style/Widget.Material3.Button.OutlinedButton"
-                    android:layout_width="0dp"
+                    android:id="@+id/btn_mods_enable_all"
+                    style="@style/Widget.Material3.Button.IconButton.Outlined"
+                    android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:layout_weight="1"
-                    android:text="@string/mods_install_zip"
-                    android:textSize="12sp" />
+                    android:layout_marginStart="6dp"
+                    android:contentDescription="@string/mods_enable_all"
+                    android:tooltipText="@string/mods_enable_all"
+                    app:icon="@drawable/ic_mods_enable_all" />
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/btn_mods_disable_all"
+                    style="@style/Widget.Material3.Button.IconButton.Outlined"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:contentDescription="@string/mods_disable_all"
+                    android:tooltipText="@string/mods_disable_all"
+                    app:icon="@drawable/ic_mods_disable_all" />
             </LinearLayout>
 
             <TextView
@@ -85,6 +97,17 @@
                 android:layout_marginTop="4dp"
                 android:alpha="0.7"
                 android:text="@string/mods_sort_hint"
+                android:textSize="12sp" />
+
+            <!-- Installing a zip is a link-style button under the row (as in Zomdroid): Sort and the two
+                 select-all icons keep one line on a narrow phone in every language. -->
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btn_mods_install"
+                style="@style/Widget.Material3.Button.TextButton"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="-12dp"
+                android:text="@string/mods_install_zip"
                 android:textSize="12sp" />
         </LinearLayout>
     </com.google.android.material.card.MaterialCardView>

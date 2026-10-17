@@ -191,7 +191,7 @@
     <string name="editor_done">完成</string>
     <string name="editor_delete">删除元素</string>
     <string name="editor_reset_confirm">把所有屏幕控件重置为默认布局？</string>
-    <string name="nav_launcher">启动器</string>
+    <string name="nav_launcher">RimDroid</string>
     <string name="nav_settings">设置</string>
     <string name="app_settings_theme">主题</string>
     <string name="etc2_cache_title">纹理缓存（MobileGlues）</string>
@@ -396,6 +396,10 @@
     <string name="mod_delete_confirm">删除</string>
     <string name="mods_sort">排序</string>
     <string name="mods_install_zip">安装 ZIP</string>
+    <string name="mods_enable_all">启用所有显示的</string>
+    <string name="mods_disable_all">停用所有显示的</string>
+    <string name="mods_disable_all_confirm">停用显示的全部 %1$d 个模组？Core 和 DLC 保持启用。模组的加载顺序会丢失，重新启用后它们会排在末尾——之后请点“排序”。</string>
+    <string name="mods_enabled_n">已启用 %1$d 个模组。点“排序”整理它们的顺序。</string>
     <string name="mods_sort_hint">“排序”会按模组作者给出的规则排列已启用的模组。按住 ≡ 拖动模组即可移动；长按可移到最前或最后。</string>
     <string name="mods_sort_title">加载顺序</string>
     <string name="mods_sort_moved">将移动 %1$d 个模组。</string>
