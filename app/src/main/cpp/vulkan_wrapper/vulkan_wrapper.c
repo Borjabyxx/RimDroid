@@ -25,6 +25,8 @@
 __attribute__((format(printf, 1, 2))) static void PDIAG(const char* fmt, ...);
 __attribute__((format(printf, 3, 4))) static void pd_app(char* buf, int* m, const char* fmt, ...);
 static int g_featuresLogged;
+static PFN_vkVoidFunction resolve_alias(const char* name, PFN_vkVoidFunction (*get)(void*, const char*), void* owner);
+static PFN_vkVoidFunction gipa_get(void* i, const char* n);
 
 static void* g_real;
 static PFN_vkGetInstanceProcAddr g_gipa;
@@ -255,6 +257,13 @@ static VkResult VKAPI_CALL getimageformatprops2_wrap(VkPhysicalDevice pd, const 
 // device. Left out of the request (in the caller's own VkPhysicalDeviceFeatures2 too: the driver only
 // reads it).
 static VkResult VKAPI_CALL createdevice_wrap(VkPhysicalDevice pd, const VkDeviceCreateInfo* info, const VkAllocationCallbacks* a, VkDevice* out) {
+    {
+        char buf[1500]; int m = 0;
+        pd_app(buf, &m, "vkCreateDevice: %u extensions enabled:", info->enabledExtensionCount);
+        for (uint32_t k = 0; k < info->enabledExtensionCount; k++) pd_app(buf, &m, " %s", info->ppEnabledExtensionNames[k]);
+        for (const VkBaseInStructure* x = (const VkBaseInStructure*)info->pNext; x; x = x->pNext) pd_app(buf, &m, " [sType %d]", (int)x->sType);
+        PDIAG("%s", buf);
+    }
     if (g_realBc < 0) {
         PFN_vkGetPhysicalDeviceFeatures gf = g_getFeatures ? g_getFeatures : (PFN_vkGetPhysicalDeviceFeatures)real("vkGetPhysicalDeviceFeatures");
         if (gf) { VkPhysicalDeviceFeatures f; gf(pd, &f); g_realBc = f.textureCompressionBC; }
@@ -2181,6 +2190,7 @@ static PFN_vkVoidFunction VKAPI_CALL gipa_wrap(VkInstance instance, const char* 
         return (PFN_vkVoidFunction)gdpa_wrap;
     }
     PFN_vkVoidFunction f = g_gipa(instance, name);
+    if (!f && instance) f = resolve_alias(name, gipa_get, instance);
     if (!f) return NULL;
     if (!strcmp(name, "vkGetPhysicalDeviceSurfaceCapabilitiesKHR")) { g_caps = (PFN_vkGetPhysicalDeviceSurfaceCapabilitiesKHR)f; return (PFN_vkVoidFunction)caps_wrap; }
     if (!strcmp(name, "vkGetPhysicalDeviceFeatures")) { g_getFeatures = (PFN_vkGetPhysicalDeviceFeatures)f; return (PFN_vkVoidFunction)getfeatures_wrap; }
@@ -2193,10 +2203,36 @@ static PFN_vkVoidFunction VKAPI_CALL gipa_wrap(VkInstance instance, const char* 
     return hook(name, f);
 }
 
+// ---- Vulkan 1.1 drivers (2026-10-18) ----------------------------------------------------------------
+// RimWorld 1.7 died 6-8 s after launch on a Mali-G57 with a Vulkan 1.1 driver: a call through a null
+// function pointer from the engine's own code. The engine asks for functions that are core only in
+// Vulkan 1.2/1.3 by their core names, which such a driver does not resolve, though it often has the
+// same function from an extension (vkWaitSemaphoresKHR...). A name the driver does not know is
+// looked up again with KHR and EXT; every miss, and every alias used, is logged once
+// (RimDroid/vkpipe, vk_pipe.log).
+static PFN_vkVoidFunction resolve_alias(const char* name, PFN_vkVoidFunction (*get)(void*, const char*), void* owner) {
+    static const char* const sufs[] = { "KHR", "EXT" };
+    char alt[160];
+    size_t len = strlen(name);
+    if (len + 4 >= sizeof alt) return NULL;
+    for (int k = 0; k < 2; k++) {
+        if (len > 3 && !strcmp(name + len - 3, sufs[k])) return NULL;   /* already a suffixed name */
+        snprintf(alt, sizeof alt, "%s%s", name, sufs[k]);
+        PFN_vkVoidFunction f = get(owner, alt);
+        if (f) { PDIAG("Vulkan function %s missing in the driver: using %s", name, alt); return f; }
+    }
+    PDIAG("Vulkan function %s missing in the driver (no KHR/EXT alias either)", name);
+    return NULL;
+}
+
+static PFN_vkVoidFunction gdpa_get(void* d, const char* n) { return g_gdpa((VkDevice)d, n); }
+static PFN_vkVoidFunction gipa_get(void* i, const char* n) { return g_gipa((VkInstance)i, n); }
+
 static PFN_vkVoidFunction VKAPI_CALL gdpa_wrap(VkDevice device, const char* name) {
     if (!g_gdpa || !name) return NULL;
     if (!strcmp(name, "vkGetDeviceProcAddr")) return (PFN_vkVoidFunction)gdpa_wrap;
     PFN_vkVoidFunction f = g_gdpa(device, name);
+    if (!f) f = resolve_alias(name, gdpa_get, device);
     return f ? hook(name, f) : NULL;
 }
 

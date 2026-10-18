@@ -403,6 +403,10 @@ SOUND_FIELD(wa_sound_rate, uint32_t, s->rate)
 SOUND_FIELD(wa_sound_length_frames, uint64_t, s->frames)
 SOUND_FIELD(wa_sound_kind, int, s->kind == KIND_PCM ? 0 : 1)
 SOUND_FIELD(wa_sound_pcm, int16_t*, s->kind == KIND_PCM ? s->pcm : NULL)
+// Added in 1.7 build 4981 (EntryPointNotFoundException, and DLC sounds failed to load without it):
+// the bytes a sound keeps in memory. Decoded PCM, or the copied file for an in-memory stream.
+SOUND_FIELD(wa_sound_resident_bytes, uint64_t, s->kind == KIND_PCM ? s->frames * s->channels * sizeof(int16_t)
+            : s->kind == KIND_STREAM_MEMORY ? (uint64_t)s->memSize : 0)
 
 // ---- groups ----
 
