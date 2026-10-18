@@ -9,6 +9,21 @@ def dotnetEngineEnabled = (project.findProperty("dotnetEngine") ?: {
     def p = new Properties(); f.withInputStream { p.load(it) }; return p.getProperty("dotnetEngine")
 }()) == "true"
 
+// Experimental runtime compiler. Keep the cache-only build as the default until
+// the matching Waylith managed bindings and an Android device have been tested.
+def runtimeSlangEnabled = project.findProperty('runtimeSlang') == 'true'
+def runtimeSlangDir = new File(buildDir, 'runtime-slang')
+if (runtimeSlangEnabled) {
+    if (!dotnetEngineEnabled) {
+        throw new GradleException('runtimeSlang requires -PdotnetEngine=true')
+    }
+    ['libslang.so', 'libslang-glslang-2026.19.so', 'libslang-glsl-module-2026.19.so'].each { name ->
+        if (!new File(runtimeSlangDir, "jniLibs/arm64-v8a/${name}").isFile()) {
+            throw new GradleException('Run tools/rimworld17/slang/build.sh before enabling runtimeSlang')
+        }
+    }
+}
+
 android {
     namespace 'com.rimdroid'
     compileSdk 36
@@ -32,7 +47,8 @@ android {
                 // ANDROID_SUPPORT_FLEXIBLE_PAGE_SIZES=ON => link with
                 // -Wl,-z,max-page-size=16384 so our libs load on 16 KB-page devices.
                 arguments "-DANDROID_STL=c++_shared",
-                          "-DANDROID_SUPPORT_FLEXIBLE_PAGE_SIZES=ON"
+                          "-DANDROID_SUPPORT_FLEXIBLE_PAGE_SIZES=ON",
+                          "-DRIMDROID_RUNTIME_SLANG=${runtimeSlangEnabled ? 'ON' : 'OFF'}"
             }
         }
         ndk {
@@ -61,6 +77,7 @@ android {
         }
         debug {
             jniDebuggable true
+            if (runtimeSlangEnabled) versionNameSuffix '-isorim-slang-experimental'
         }
     }
 
@@ -81,6 +98,10 @@ android {
     // the same way (fetchDotnetRuntime).
     sourceSets {
         main {
+            if (runtimeSlangEnabled) {
+                jniLibs.srcDirs += new File(runtimeSlangDir, 'jniLibs')
+                assets.srcDirs += new File(runtimeSlangDir, 'assets')
+            }
             assets.srcDirs += "$buildDir/harmony/assets"
             if (dotnetEngineEnabled) {
                 assets.srcDirs += "$buildDir/dotnet/assets"

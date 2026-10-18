@@ -176,8 +176,11 @@ add_library(steam_api64_stub SHARED steam_stub/steam_api64_stub.c)
 set_target_properties(steam_api64_stub PROPERTIES OUTPUT_NAME "steam_api64")
 
 # libslang.so — answers Slang's build tag so RimWorld 1.7 finds its prebuilt shader pack.
-add_library(slang_stub SHARED slang_stub/slang_stub.c)
-set_target_properties(slang_stub PROPERTIES OUTPUT_NAME "slang")
+option(RIMDROID_RUNTIME_SLANG "Package the separately built Slang compiler" OFF)
+if(NOT RIMDROID_RUNTIME_SLANG)
+    add_library(slang_stub SHARED slang_stub/slang_stub.c)
+    set_target_properties(slang_stub PROPERTIES OUTPUT_NAME "slang")
+endif()
 
 # With BC re-encoded to ETC2/EAC for GPUs without BC (bctranscode.cpp: bcdec + etcpak, the same
 # encoders as librimdroidtex, compiled in here: that library links the system libvulkan, this one
