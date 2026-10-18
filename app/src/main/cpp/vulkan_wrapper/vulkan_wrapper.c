@@ -27,6 +27,7 @@ __attribute__((format(printf, 3, 4))) static void pd_app(char* buf, int* m, cons
 static int g_featuresLogged;
 static PFN_vkVoidFunction resolve_alias(const char* name, PFN_vkVoidFunction (*get)(void*, const char*), void* owner);
 static PFN_vkVoidFunction gipa_get(void* i, const char* n);
+static PFN_vkVoidFunction debug_utils_stub(const char* name);
 
 static void* g_real;
 static PFN_vkGetInstanceProcAddr g_gipa;
@@ -2191,7 +2192,7 @@ static PFN_vkVoidFunction VKAPI_CALL gipa_wrap(VkInstance instance, const char* 
     }
     PFN_vkVoidFunction f = g_gipa(instance, name);
     if (!f && instance) f = resolve_alias(name, gipa_get, instance);
-    if (!f) return NULL;
+    if (!f) return debug_utils_stub(name);
     if (!strcmp(name, "vkGetPhysicalDeviceSurfaceCapabilitiesKHR")) { g_caps = (PFN_vkGetPhysicalDeviceSurfaceCapabilitiesKHR)f; return (PFN_vkVoidFunction)caps_wrap; }
     if (!strcmp(name, "vkGetPhysicalDeviceFeatures")) { g_getFeatures = (PFN_vkGetPhysicalDeviceFeatures)f; return (PFN_vkVoidFunction)getfeatures_wrap; }
     if (!strcmp(name, "vkGetPhysicalDeviceFeatures2") || !strcmp(name, "vkGetPhysicalDeviceFeatures2KHR")) { g_getFeatures2 = (PFN_vkGetPhysicalDeviceFeatures2)f; return (PFN_vkVoidFunction)getfeatures2_wrap; }
@@ -2225,6 +2226,29 @@ static PFN_vkVoidFunction resolve_alias(const char* name, PFN_vkVoidFunction (*g
     return NULL;
 }
 
+// VK_EXT_debug_utils stand-ins (2026-10-18). The engine checks the extension only for its message
+// callback; FrameRenderer.RecordFrame labels every render pass with vkCmdBeginDebugUtilsLabelEXT
+// unconditionally, so on a driver without the extension (Mali-G57 r32, Adreno 618 of 2021) the
+// first frame called a null pointer and the game died "after a few seconds" with a black screen.
+// Labels and object names are for graphics debuggers; without the extension they do nothing.
+static void VKAPI_CALL dbg_cmd_label(VkCommandBuffer c, const VkDebugUtilsLabelEXT* l) { (void)c; (void)l; }
+static void VKAPI_CALL dbg_cmd_end(VkCommandBuffer c) { (void)c; }
+static void VKAPI_CALL dbg_queue_label(VkQueue q, const VkDebugUtilsLabelEXT* l) { (void)q; (void)l; }
+static void VKAPI_CALL dbg_queue_end(VkQueue q) { (void)q; }
+static VkResult VKAPI_CALL dbg_set_name(VkDevice d, const VkDebugUtilsObjectNameInfoEXT* i) { (void)d; (void)i; return VK_SUCCESS; }
+static VkResult VKAPI_CALL dbg_set_tag(VkDevice d, const VkDebugUtilsObjectTagInfoEXT* i) { (void)d; (void)i; return VK_SUCCESS; }
+static PFN_vkVoidFunction debug_utils_stub(const char* name) {
+    PFN_vkVoidFunction f = NULL;
+    if (!strcmp(name, "vkCmdBeginDebugUtilsLabelEXT") || !strcmp(name, "vkCmdInsertDebugUtilsLabelEXT")) f = (PFN_vkVoidFunction)dbg_cmd_label;
+    else if (!strcmp(name, "vkCmdEndDebugUtilsLabelEXT")) f = (PFN_vkVoidFunction)dbg_cmd_end;
+    else if (!strcmp(name, "vkQueueBeginDebugUtilsLabelEXT") || !strcmp(name, "vkQueueInsertDebugUtilsLabelEXT")) f = (PFN_vkVoidFunction)dbg_queue_label;
+    else if (!strcmp(name, "vkQueueEndDebugUtilsLabelEXT")) f = (PFN_vkVoidFunction)dbg_queue_end;
+    else if (!strcmp(name, "vkSetDebugUtilsObjectNameEXT")) f = (PFN_vkVoidFunction)dbg_set_name;
+    else if (!strcmp(name, "vkSetDebugUtilsObjectTagEXT")) f = (PFN_vkVoidFunction)dbg_set_tag;
+    if (f) PDIAG("Vulkan function %s missing in the driver: using a no-op stand-in", name);
+    return f;
+}
+
 static PFN_vkVoidFunction gdpa_get(void* d, const char* n) { return g_gdpa((VkDevice)d, n); }
 static PFN_vkVoidFunction gipa_get(void* i, const char* n) { return g_gipa((VkInstance)i, n); }
 
@@ -2233,7 +2257,8 @@ static PFN_vkVoidFunction VKAPI_CALL gdpa_wrap(VkDevice device, const char* name
     if (!strcmp(name, "vkGetDeviceProcAddr")) return (PFN_vkVoidFunction)gdpa_wrap;
     PFN_vkVoidFunction f = g_gdpa(device, name);
     if (!f) f = resolve_alias(name, gdpa_get, device);
-    return f ? hook(name, f) : NULL;
+    if (!f) return debug_utils_stub(name);
+    return hook(name, f);
 }
 
 static PFN_vkVoidFunction hook(const char* name, PFN_vkVoidFunction f) {
