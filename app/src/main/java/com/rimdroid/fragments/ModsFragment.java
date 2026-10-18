@@ -414,6 +414,8 @@ public class ModsFragment extends Fragment {
             sb.append(m.packageId).append('\n');
             if (!m.supportedVersions.isEmpty())
                 sb.append(getString(R.string.mods_versions, String.join(", ", m.supportedVersions))).append('\n');
+            String gv = gi != null ? ModList.gameVersion(new File(gi.getGamePath())) : "";
+            if (!m.supports(gv)) sb.append(getString(R.string.mods_made_for_note, gv)).append('\n');
             sb.append(getString(R.string.mods_folder, m.folder.getName()));
             if (!m.description.isEmpty()) {
                 String d = m.description.replaceAll("\\[/?[a-zA-Z]+[^\\]]*\\]", "").trim();
@@ -461,8 +463,19 @@ public class ModsFragment extends Fragment {
                 sub.setText(R.string.mods_not_installed);
             } else {
                 name.setText(r.mod.name);
-                String s = r.mod.author;
-                if (!r.mod.supports(version)) s = getString(R.string.mods_wrong_version, version) + (s.isEmpty() ? "" : " · " + s);
+                // The game versions the author listed (the newest two), the instance's own in green;
+                // no warning for the others: most 1.6 mods run on 1.7 too, and Ludeon promised to keep
+                // old mods working. Then the author.
+                android.text.SpannableStringBuilder s = new android.text.SpannableStringBuilder();
+                java.util.List<String> vs = r.mod.supportedVersions;
+                for (int k = Math.max(0, vs.size() - 2); k < vs.size(); k++) {
+                    if (s.length() > 0) s.append(", ");
+                    int at = s.length();
+                    s.append(vs.get(k));
+                    if (vs.get(k).equals(version))
+                        s.setSpan(new android.text.style.ForegroundColorSpan(0xFF4CAF50), at, s.length(), 0);
+                }
+                if (!r.mod.author.isEmpty()) s.append(s.length() > 0 ? " · " : "").append(r.mod.author);
                 sub.setText(s);
             }
             sub.setVisibility(sub.getText().length() == 0 ? View.GONE : View.VISIBLE);

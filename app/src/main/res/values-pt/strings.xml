@@ -373,7 +373,7 @@ Na nuvem: %2$s
     <string name="vk_compat_off">Desligada</string>
     <string name="vk_compat_hint">Ligue se a imagem congela no logotipo ou no menu enquanto o jogo continua rodando. A imagem é a mesma; o Unity monta cada quadro de outro jeito. Vale a partir do próximo início.</string>
     <string name="release_notes_title">Novidades da v%1$s</string>
-    <string name="release_notes_body"><b>– Motor nativo para RimWorld 1.6 (experimental)</b>\nO próprio motor do jogo compilado para Android, sem emulação: a forma mais rápida de jogar e a que menos usa memória. Instâncias novas já usam; as antigas mudam nas configurações da instância.\n\n<b>– Texturas preparadas uma vez</b>\nO primeiro início converte as texturas dos mods para o seu celular; depois carrega mais rápido e usa menos memória.\n\n<b>– Tela de mods</b>\nMenu lateral → <b>Mods</b>: ligue e desligue mods, apague-os, <b>Ordene</b> a ordem de carregamento, arraste pelo ≡.\n\n<b>– Coleções do Workshop</b>\nCole o link ou o ID de uma coleção no baixador de mods: todos os mods dela são baixados.\n\n<b>– Atalhos na tela inicial</b>\nMenu ⋮ da instância → <b>Adicionar à tela inicial</b>.\n\n<b>– Também</b>\nImportar / exportar em duas telas em vez de quatro itens de menu, botões quadrados no editor de controles, chinês simplificado.\n\n<b>– Correções</b>\nSem fechar antes do menu em celulares vivo; digitar funciona com o Gboard.\n\n<i>O RimWorld 1.5 agora é antigo; o download padrão é o 1.6. Antes de atualizar, salve seus jogos: menu lateral → Importar / exportar jogos salvos.</i></string>
+    <string name="release_notes_body"><b>– RimWorld 1.7 (experimental)</b>\nA atualização de teste da Ludeon roda nativamente, sem emulação: muito mais leve que a 1.6. A maioria dos mods para 1.6 funciona. Digitação em qualquer idioma. Mantenha a 1.7 em uma instância própria.\n\n<b>– Downloads da Steam: 1.6 e 1.7</b>\nO jogo é salvo como zip; <b>Criar uma instância</b> abre ele. A 1.5 não é mais oferecida.\n\n<b>– Notícias do RimWorld</b>\nNa tela inicial.\n\n<b>– Tela de mods</b>\nMenu lateral → <b>Mods</b>: ativar / desativar todos, as versões do jogo de cada mod (a sua em verde), vários mods em um só zip.\n\n<b>– Mais novidades</b>\nTrocar os analógicos do controle; mouse e controle na 1.7.\n\n<b>– Correções</b>\nCapturas com F10 no motor nativo; pacotes de mods com Prepatcher instalam a partir de um só zip.\n\n<i>Antes de atualizar, faça backup dos jogos salvos: menu lateral → Importar / exportar jogos salvos.</i></string>
     <string name="nav_mods">Mods</string>
     <string name="mods_active">Ativos (%1$d) — na ordem de carregamento</string>
     <string name="mods_inactive">Inativos (%1$d)</string>
@@ -383,6 +383,7 @@ Na nuvem: %2$s
     <string name="mods_no_config">Inicie o jogo uma vez para ligar e desligar mods aqui.</string>
     <string name="mods_not_installed">Não instalado: está na lista, mas a pasta não existe</string>
     <string name="mods_wrong_version">Não é para %1$s</string>
+    <string name="mods_made_for_note">O autor não marcou o RimWorld %1$s. Muitos desses mods funcionam mesmo assim; se algo quebrar, comece por eles.</string>
     <string name="mods_switch_failed">Não foi possível mudar a lista de mods</string>
     <string name="mods_author">Autor: %1$s</string>
     <string name="mods_versions">Versões do jogo: %1$s</string>

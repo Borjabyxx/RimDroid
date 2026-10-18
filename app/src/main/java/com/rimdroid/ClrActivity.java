@@ -208,10 +208,6 @@ public class ClrActivity extends Activity {
             DotnetEngine.defaultUiScale(gi, gi.settings(), renderW, renderH);
             // The 1.6 built-in mod is no use on 1.7 (see BuiltinControllerUiMod.install): off if on.
             com.rimdroid.BuiltinControllerUiMod.setActive(new File(gamePath), false);
-            // TEMP diagnosis (Harmony "Patching exception" on 1.7): Harmony's and MonoMod's own logs.
-            android.system.Os.setenv("HARMONY_LOG_FILE", gamePath + "/harmony.log.txt", true);
-            android.system.Os.setenv("HARMONY_DEBUG", "1", true);
-            android.system.Os.setenv("MONOMOD_LogToFile", gamePath + "/monomod.log.txt", true);
             int code = runClr(coreclr, assembly, logFile.getAbsolutePath(), keys, values, new String[0]);
             Log.i(TAG, "runClr returned " + code);
             append("\n=== finished: " + code + " ===\n");

@@ -1614,7 +1614,9 @@ static FILE* g_pdiagFile;
 static pthread_mutex_t g_pdiagMu = PTHREAD_MUTEX_INITIALIZER;
 static VkPipeline g_tracePipes[8];
 static VkPipelineLayout g_uiMatLayouts[16];   // 3 sets + 16-byte push: the ImGui material pipelines'
-static int g_tracing, g_traceBudget = 120, g_viewportLogs = 12, g_beginLogs = 40, g_uboLogs = 12;
+// The draw-command trace and the per-frame lines were for the icon hunt; off for releases (set the
+// budgets again to bring them back). Layouts, pipelines, samplers and shader hashes stay logged.
+static int g_tracing, g_traceBudget = 0, g_viewportLogs = 0, g_beginLogs = 0, g_uboLogs = 0;
 static unsigned g_imgLayoutSeen[16];          // image layouts seen in sampler descriptor writes
 
 __attribute__((format(printf, 1, 2)))
@@ -2008,7 +2010,7 @@ static VkResult VKAPI_CALL shadermodule_wrap(VkDevice d, const VkShaderModuleCre
         }
         PDIAG("shader module %llx: %u bytes, stage %s, hash %08x", (unsigned long long)*out, (unsigned)info->codeSize,
               model == 0 ? "vertex" : model == 4 ? "fragment" : model == 5 ? "compute" : "other", h);
-        pdiag_dump_spv(h, info->pCode, info->codeSize);
+        (void)pdiag_dump_spv;   // dumping every module to $HOME/vk_spv was for the icon hunt
         if (h == IMGUI_VS_HASH || h == IMGUI_FS_HASH) {
             VkShaderModule* set = h == IMGUI_VS_HASH ? g_imguiVs : g_imguiFs;
             pthread_mutex_lock(&g_imguiMu);

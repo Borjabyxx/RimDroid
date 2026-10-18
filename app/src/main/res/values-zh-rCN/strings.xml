@@ -377,7 +377,7 @@
     <string name="vk_compat_off">关闭</string>
     <string name="vk_compat_hint">如果画面在标志或菜单处卡住而游戏仍在运行，请开启。画面相同，只是 Unity 构建每一帧的方式不同。下次启动生效。</string>
     <string name="release_notes_title">v%1$s 更新内容</string>
-    <string name="release_notes_body"><b>– RimWorld 1.6 原生引擎（实验性）</b>\n为 Android 构建的游戏自身引擎，完全无需模拟：最快、最省内存的游玩方式。新实例默认使用它；旧实例可在实例设置中切换。\n\n<b>– 纹理只需准备一次</b>\n首次启动会把模组纹理转换为手机的格式，之后加载更快、占用内存更少。\n\n<b>– 模组界面</b>\n侧边菜单 → <b>模组</b>：启用或停用模组、删除模组、<b>排序</b>加载顺序、按住 ≡ 拖动。\n\n<b>– 创意工坊合集</b>\n把合集的链接或 ID 粘贴到模组下载器中，即可下载其中的所有模组。\n\n<b>– 主屏幕快捷方式</b>\n实例的 ⋮ 菜单 → <b>添加到主屏幕</b>。\n\n<b>– 其他</b>\n导入 / 导出改为两个界面（原来是四个菜单项），控件编辑器新增方形按钮，简体中文。\n\n<b>– 修复</b>\nvivo 手机不再在进入菜单前崩溃；Gboard 可以输入文字。\n\n<i>RimWorld 1.5 现为旧版，默认下载 1.6。更新前请备份存档：侧边菜单 → 导入 / 导出存档。</i></string>
+    <string name="release_notes_body"><b>– RimWorld 1.7（实验性）</b>\nLudeon 的测试版更新以原生方式运行，无需模拟：比 1.6 轻得多。大多数 1.6 模组可以使用。支持任何语言的文字输入。请把 1.7 放在单独的实例中。\n\n<b>– Steam 下载：1.6 和 1.7</b>\n游戏保存为 zip；<b>创建实例</b>即可打开。不再提供 1.5。\n\n<b>– RimWorld 新闻</b>\n显示在主屏幕上。\n\n<b>– 模组界面</b>\n侧边菜单 → <b>模组</b>：全部启用 / 全部停用，每个模组支持的游戏版本（你的版本显示为绿色），一个 zip 中可包含多个模组。\n\n<b>– 其他新功能</b>\n可交换手柄摇杆；1.7 支持鼠标和手柄。\n\n<b>– 修复</b>\n原生引擎下的 F10 截图；含 Prepatcher 的模组包可用一个 zip 安装。\n\n<i>更新前请备份存档：侧边菜单 → 导入 / 导出存档。</i></string>
     <string name="nav_mods">模组</string>
     <string name="mods_active">已启用（%1$d）— 按加载顺序</string>
     <string name="mods_inactive">未启用（%1$d）</string>
@@ -387,6 +387,7 @@
     <string name="mods_no_config">先启动一次游戏，才能在这里启用和停用模组。</string>
     <string name="mods_not_installed">未安装 — 在列表中，但缺少其文件夹</string>
     <string name="mods_wrong_version">不适用于 %1$s</string>
+    <string name="mods_made_for_note">作者未标注 RimWorld %1$s。许多这类模组仍能使用；如果出现问题，请先检查它们。</string>
     <string name="mods_switch_failed">无法更改模组列表</string>
     <string name="mods_author">作者：%1$s</string>
     <string name="mods_versions">游戏版本：%1$s</string>

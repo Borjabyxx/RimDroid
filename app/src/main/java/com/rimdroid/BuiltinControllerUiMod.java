@@ -39,7 +39,16 @@ public final class BuiltinControllerUiMod {
         if (context == null || instanceDir == null || !instanceDir.isDirectory()) return;
         // Not for RimWorld 1.7 (its own engine on .NET): the mod carries a .NET Framework build of
         // Lib.Harmony for 1.6, which there only collides with the Harmony mod's 1.7 build.
-        if (new File(instanceDir, "RimWorld.runtimeconfig.json").isFile()) return;
+        if (new File(instanceDir, "RimWorld.runtimeconfig.json").isFile()) {
+            // Instances made before this check got it anyway: take it out (folder and load order).
+            File stale = new File(instanceDir, "Mods/" + MOD_DIR);
+            if (stale.isDirectory()) {
+                setActive(instanceDir, false);
+                deleteTree(stale);
+                Log.i(TAG, "Built-in controller mod removed from RimWorld 1.7 instance " + instanceDir.getName());
+            }
+            return;
+        }
         try {
             File modDir = new File(instanceDir, "Mods/" + MOD_DIR);
             copyAssetTree(context.getAssets(), ASSET_ROOT, modDir);
@@ -68,6 +77,13 @@ public final class BuiltinControllerUiMod {
             // Controller support must never make an otherwise valid game instance unlaunchable.
             Log.w(TAG, "Built-in controller mod activation skipped for " + instanceDir.getName(), t);
         }
+    }
+
+    private static void deleteTree(File f) {
+        File[] kids = f.listFiles();
+        if (kids != null) for (File k : kids) deleteTree(k);
+        //noinspection ResultOfMethodCallIgnored
+        f.delete();
     }
 
     private static void copyAssetTree(AssetManager assets, String assetPath, File output) throws Exception {
