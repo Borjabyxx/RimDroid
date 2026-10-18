@@ -9,6 +9,7 @@ on:
 
 jobs:
   build:
+    if: github.event_name != 'workflow_dispatch' || github.ref != 'refs/heads/fix/isorim-waylith-android'
     runs-on: ubuntu-latest
 
     steps:
@@ -108,3 +109,120 @@ jobs:
           name: rimdroid-release-${{ steps.app_version.outputs.name }}
           path: app/build/outputs/apk/release/rimdroid-release-${{ steps.app_version.outputs.name }}.apk
           retention-days: 30
+
+  isorim-experimental:
+    name: IsoRim Waylith experimental APK
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/fix/isorim-waylith-android'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 180
+    permissions:
+      contents: read
+    env:
+      BUILD_JOBS: '4'
+      ORG_GRADLE_PROJECT_nativeEngine: 'false'
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Check build space and host dependencies
+        run: |
+          set -euo pipefail
+          df -h "$GITHUB_WORKSPACE" "$RUNNER_TEMP"
+          # Host + ARM64 Slang, box64, Android tools and two APKs need headroom.
+          available=$(df -Pk "$GITHUB_WORKSPACE" | awk 'NR == 2 {print $4}')
+          if (( available < 20 * 1024 * 1024 )); then
+            echo '::error::At least 20 GiB free space is required.'
+            exit 1
+          fi
+          sudo apt-get update
+          sudo apt-get install -y build-essential python3 git unzip
+          for tool in cc c++ python3 git unzip; do command -v "$tool"; done
+          test -s app/libs/fmod.jar
+          test -s app/src/dotnet/assets/dotnet/hooks/RimDroidClrHooks.dll
+          git submodule status --recursive
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools platforms;android-36 build-tools;36.0.0 ndk;27.0.12077973 cmake;3.22.1
+
+      - name: Verify Android toolchain
+        run: |
+          set -euo pipefail
+          java -version
+          javac -version
+          echo "SLANG_WORK_DIR=$RUNNER_TEMP/slang-build" >> "$GITHUB_ENV"
+          echo "ANDROID_NDK_HOME=$ANDROID_HOME/ndk/27.0.12077973" >> "$GITHUB_ENV"
+          echo "READELF=$ANDROID_HOME/ndk/27.0.12077973/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-readelf" >> "$GITHUB_ENV"
+          "$ANDROID_HOME/cmake/3.22.1/bin/cmake" --version
+          "$ANDROID_HOME/cmake/3.22.1/bin/ninja" --version
+          test -x "$ANDROID_HOME/ndk/27.0.12077973/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-readelf"
+          bash gradlew --version
+
+      - name: Test native capability filter
+        run: |
+          set -euo pipefail
+          cc -std=c11 -Wall -Wextra -Werror app/src/test/native/mg_caps_test.c -o "$RUNNER_TEMP/mg_caps_test"
+          "$RUNNER_TEMP/mg_caps_test"
+
+      - name: Build and test baseline APK
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/isorim-artifacts"
+          bash gradlew --no-daemon --max-workers=4 -PdotnetEngine=true -PruntimeSlang=false :app:testDebugUnitTest :app:assembleDebug
+          mapfile -t apks < <(find app/build/outputs/apk/debug -maxdepth 1 -name '*.apk')
+          test "${#apks[@]}" -eq 1
+          cp "${apks[0]}" "$RUNNER_TEMP/baseline.apk"
+          # Clean before preparing Slang: clean afterwards would delete its libraries.
+          bash gradlew --no-daemon --max-workers=4 -PdotnetEngine=true -PruntimeSlang=false clean
+
+      - name: Build pinned Slang and run host API smoke test
+        run: bash tools/rimworld17/slang/build.sh
+
+      - name: Build and test experimental APK
+        run: |
+          set -euo pipefail
+          bash gradlew --no-daemon --max-workers=4 -PdotnetEngine=true -PruntimeSlang=true :app:testDebugUnitTest :app:assembleDebug
+          mapfile -t apks < <(find app/build/outputs/apk/debug -maxdepth 1 -name '*-isorim-slang-experimental.apk')
+          test "${#apks[@]}" -eq 1
+          cp "${apks[0]}" "$RUNNER_TEMP/isorim-artifacts/rimdroid-isorim-slang-experimental.apk"
+
+      - name: Verify APK and packaging regressions
+        run: |
+          set -euo pipefail
+          out="$RUNNER_TEMP/isorim-artifacts"
+          apk="$out/rimdroid-isorim-slang-experimental.apk"
+          python3 tools/rimworld17/slang/verify_apk.py "$apk" --runtime-slang --readelf "$READELF" --report "$out/experimental-elf.json"
+          python3 tools/rimworld17/slang/test_apks.py "$RUNNER_TEMP/baseline.apk" "$apk" "$READELF"
+          "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --verbose "$apk"
+          cp app/build/runtime-slang/assets/runtime-slang/provenance.json "$out/"
+          (cd "$out" && sha256sum rimdroid-isorim-slang-experimental.apk > SHA256SUMS)
+          printf '%s\n' "Source commit: $GITHUB_SHA" 'Experimental build; Android execution and Waylith ABI have not been verified.' > "$out/BUILD.txt"
+          df -h "$GITHUB_WORKSPACE" "$RUNNER_TEMP"
+
+      - name: Publish verified experimental APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: rimdroid-isorim-slang-experimental-${{ github.run_id }}
+          path: ${{ runner.temp }}/isorim-artifacts/
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Publish test reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: isorim-test-reports-${{ github.run_id }}
+          path: |
+            app/build/reports/tests/
+            app/build/test-results/
+          if-no-files-found: ignore
+          retention-days: 14

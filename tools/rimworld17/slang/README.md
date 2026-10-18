@@ -101,6 +101,26 @@ La compilación box64 existente regenera archivos versionados. Conserva el estad
 previo y restaura solo esos cambios generados tras compilar; no descartes trabajo
 del usuario. Los artefactos Slang se crean fuera de los archivos versionados.
 
+## Descargar el APK desde GitHub Actions
+
+En GitHub abre **Actions → Build RimDroid APK → Run workflow** y selecciona
+`fix/isorim-waylith-android` en **Use workflow from**. Esa ejecución manual usa
+JDK 21, SDK 36, NDK 27.0.12077973 y CMake 3.22.1; exige al menos 20 GiB libres.
+Compila el APK .NET habitual, ejecuta el smoke test host de Slang, compila con
+`-PdotnetEngine=true -PruntimeSlang=true`, ejecuta los tests unitarios y las cuatro
+pruebas de regresión de empaquetado, verifica el APK y comprueba su firma.
+
+Al terminar correctamente, abre la ejecución y descarga en **Artifacts**
+`rimdroid-isorim-slang-experimental-<run_id>`. Extrae el ZIP en Windows: contiene
+`rimdroid-isorim-slang-experimental.apk`, `SHA256SUMS`, el informe ELF,
+la procedencia Slang y el commit de origen. El artefacto caduca a los 14 días;
+puedes volver a ejecutar el workflow. Los informes de tests se publican también
+si la compilación falla. No necesita archivos del juego ni el APK anterior de
+`/workspace/artifacts`.
+
+Estas comprobaciones de CI no ejecutan Android ni acreditan que IsoRim/Waylith
+funcione en un dispositivo. Sigue la validación de la sección siguiente.
+
 ## Verificación y prueba en Android
 
 ```bash
