@@ -110,7 +110,9 @@ python3 tools/rimworld17/slang/verify_apk.py /ruta/experimental.apk \
 ```
 
 El verificador comprueba ZIP, ARM64, .NET/hooks, dependencias ELF, símbolos Slang
-y audio, nombres y alineación de las tres bibliotecas nuevas. Reconoce SONAME de
+y audio, nombres, alineación y SHA-256 del manifiesto de las tres bibliotecas
+nuevas. El script elimina los símbolos no necesarios antes de calcular los hashes
+para que coincidan con los bytes que Gradle empaqueta. Reconoce SONAME de
 bibliotecas existentes precargadas, como Mono. No sustituye la carga en Android.
 Sin `--runtime-slang` comprueba que el APK .NET habitual conserve el stub.
 

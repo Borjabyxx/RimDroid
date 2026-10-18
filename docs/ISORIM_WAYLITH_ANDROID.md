@@ -118,6 +118,7 @@ modificó el código de audio, el motor de juego ni ningún archivo propietario.
 | Dependencias ELF | Cubiertas por Android o bibliotecas empaquetadas, incluyendo aliases SONAME existentes. |
 | Alineación de los 3 nuevos ELF | Todos los segmentos LOAD alineados a 16 KB. |
 | Firma / ZIP APK experimental | `apksigner verify`: firma v2 válida; `zipalign -c -P 16 4`: correcto. |
+| Procedencia de Slang | Los SHA-256 de las tres bibliotecas dentro del APK coinciden con su manifiesto. |
 | Audio | `wa_sound_resident_bytes` presente en ambos APK. |
 | Ejecución Android y juego | **No ejecutada.** El ejecutable ARM64 de prueba queda disponible para dispositivo. |
 
@@ -131,7 +132,7 @@ Paquete `com.rimdroid`, versión `0.3.0v2-isorim-slang-experimental`, versionCod
 Android mínimo 30, ARM64. SHA-256:
 
 ```text
-836deb9a49bf47729b299993d2ceac7a4d908958b3122d6b2221cc72bc417edd
+c7458acfbfc176945b6f2b3c1213598a580bb04d3cbd91a950f931cab982f28c
 ```
 
 Los artefactos se entregan con el informe de esta tarea; no están almacenados en

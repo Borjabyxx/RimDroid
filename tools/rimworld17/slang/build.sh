@@ -46,6 +46,9 @@ dest="$root/app/build/runtime-slang"
 mkdir -p "$dest/jniLibs/arm64-v8a" "$dest/assets/runtime-slang/licenses"
 for name in libslang.so libslang-glslang-2026.19.so libslang-glsl-module-2026.19.so; do
     install -m 644 "$work/android/upstream/Release/lib/$name" "$dest/jniLibs/arm64-v8a/$name"
+    # Match AGP's strip step before recording hashes. A second strip is
+    # idempotent, so the provenance describes the bytes inside the final APK.
+    "$ndk/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-strip" --strip-unneeded "$dest/jniLibs/arm64-v8a/$name"
 done
 # Retain upstream legal notices in the APK, alongside provenance. Dependencies
 # remain pinned by Slang's gitlinks; no third-party source is changed or vendored.

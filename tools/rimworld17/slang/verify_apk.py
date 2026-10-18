@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Verify packaged ARM64 libraries, real Slang exports and dependency closure."""
 import argparse
+import hashlib
 import json
 from pathlib import Path
 import re
@@ -81,6 +82,10 @@ def verify(apk, readelf, runtime):
             provenance = json.loads(archive.read('assets/runtime-slang/provenance.json'))
             if provenance['commit'] != '0fb6b7587a94fa33d88141ec9930766eedc6f59a':
                 raise ValueError('Unexpected Slang source provenance')
+            for name in MODULES:
+                digest = hashlib.sha256(archive.read('lib/arm64-v8a/' + name)).hexdigest()
+                if provenance['libraries'].get(name) != digest:
+                    raise ValueError(f'{name}: packaged bytes do not match provenance')
         elif 'slang_createGlobalSession2' in slang['exports'] or any(n in info for n in MODULES[1:]):
             raise ValueError('Default build unexpectedly contains runtime Slang')
         return {name: {**item, 'exports': sorted(item['exports'])} for name, item in info.items()}
