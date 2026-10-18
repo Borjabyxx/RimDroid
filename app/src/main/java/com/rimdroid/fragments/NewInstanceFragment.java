@@ -162,22 +162,42 @@ public class NewInstanceFragment extends Fragment {
      *  one-time dialog, then return to the launcher. */
     private void adviseDriverThenLeave() {
         final String inst = lastInstanceName;
-        if (inst == null) { Navigation.findNavController(requireView()).popBackStack(); return; }
+        if (inst == null) { leave(); return; }
         new Thread(() -> {
             final com.rimdroid.GpuDriverAdvisor.Result r =
                     com.rimdroid.GpuDriverAdvisor.applyRecommendedDriver(inst);
             mainHandler.post(() -> {
                 if (!isAdded() || getView() == null) return;
-                if (!r.announce) { Navigation.findNavController(requireView()).popBackStack(); return; }
+                if (!r.announce) { leave(); return; }
                 new com.google.android.material.dialog.MaterialAlertDialogBuilder(requireContext())
                         .setTitle(R.string.driver_auto_set_title)
                         .setMessage(getString(R.string.driver_auto_set, r.gpuName, r.driverLabel))
                         .setCancelable(false)
                         .setPositiveButton(android.R.string.ok,
-                                (d, w) -> Navigation.findNavController(requireView()).popBackStack())
+                                (d, w) -> leave())
                         .show();
             });
         }, "rd-gpu-advise").start();
+    }
+
+    /** Set when an install ended while the launcher was in the background (see leave). */
+    private boolean leaveOnResume;
+
+    /**
+     * Back to the launcher. Android refuses a navigation while the app is in the background (its
+     * state is saved), and the screen then stayed on "Installing..." with the instance long done
+     * (2026-10-18): the return waits for onResume instead.
+     */
+    private void leave() {
+        if (!isAdded() || getView() == null) return;
+        if (isStateSaved()) { leaveOnResume = true; return; }
+        Navigation.findNavController(requireView()).popBackStack();
+    }
+
+    @Override
+    public void onResume() {
+        super.onResume();
+        if (leaveOnResume) { leaveOnResume = false; leave(); }
     }
 
     /** "RimWorld", or "RimWorld2"/"RimWorld3"/... — the first name with no existing instance directory. */
