@@ -345,6 +345,18 @@ public class InstallerService extends Service {
      * nested game ("instance/game/RimWorldLinux*") to the instance root so isInstalled() passes.
      */
     private void reRoot(File gameRoot, File instanceDir) throws IOException {
+        // The top wrapper folder can share a name with something inside the game: a zip holding
+        // "RimWorld/..." with 1.7's own "RimWorld" executable in it stopped with "Name clash"
+        // (2026-10-18). The wrapper goes out of the way under a temporary name first.
+        File top = gameRoot;
+        while (top.getParentFile() != null && !top.getParentFile().equals(instanceDir)) top = top.getParentFile();
+        if (instanceDir.equals(top.getParentFile())) {
+            File moved = new File(instanceDir, ".rd_wrapper_" + System.currentTimeMillis());
+            if (top.renameTo(moved)) {
+                String rest = gameRoot.getPath().substring(top.getPath().length());
+                gameRoot = new File(moved.getPath() + rest);
+            }
+        }
         File[] kids = gameRoot.listFiles();
         if (kids != null) {
             for (File k : kids) {

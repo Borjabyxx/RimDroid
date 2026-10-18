@@ -15,7 +15,9 @@ import java.util.zip.ZipFile;
  * Smart RimWorld mod importer. Takes any .zip and finds each mod root by its
  * {@code About/About.xml} marker, then extracts that root (stripping any wrapping
  * folders, e.g. a zip that double-wraps as {@code Wrapper/RealMod/About/About.xml})
- * into the instance's {@code Mods} folder. Supports multiple mods in one zip.
+ * into the instance's {@code Mods} folder. Supports multiple mods in one zip, and zips inside the
+ * zip: players pack the mods they downloaded one by one, each its own .zip, into one archive and got
+ * "No RimWorld mod found" (2026-10-18). Each inner zip is installed like a zip of its own (one level).
  */
 public final class ModImporter {
 
@@ -35,6 +37,10 @@ public final class ModImporter {
      * @param fallbackName name to use if a mod sits at the zip root (no wrapping folder)
      */
     public static Result importZip(File zipFile, File modsDir, String fallbackName) {
+        return importZip(zipFile, modsDir, fallbackName, true);
+    }
+
+    private static Result importZip(File zipFile, File modsDir, String fallbackName, boolean openInnerZips) {
         Result r = new Result();
         ZipFile zf = null;
         try {
@@ -51,7 +57,20 @@ public final class ModImporter {
                     if (!roots.contains(prefix)) roots.add(prefix);
                 }
             }
-            if (roots.isEmpty()) {
+            // Zips inside the zip that are not part of a mod found above (a mod may ship its own).
+            List<String> innerZips = new ArrayList<>();
+            if (openInnerZips) {
+                Enumeration<? extends ZipEntry> ez = zf.entries();
+                while (ez.hasMoreElements()) {
+                    ZipEntry ze = ez.nextElement();
+                    String name = ze.getName().replace('\\', '/');
+                    if (ze.isDirectory() || !name.toLowerCase().endsWith(".zip")) continue;
+                    boolean inMod = false;
+                    for (String root : roots) if (name.startsWith(root) && !root.isEmpty()) inMod = true;
+                    if (!inMod) innerZips.add(ze.getName());
+                }
+            }
+            if (roots.isEmpty() && innerZips.isEmpty()) {
                 r.errors.add("No RimWorld mod found (missing About/About.xml).");
                 return r;
             }
@@ -96,6 +115,22 @@ public final class ModImporter {
                     }
                 }
                 r.imported.add(destName);
+            }
+
+            // 3. Each inner zip: copied out next to the outer one, installed, deleted.
+            for (String entryName : innerZips) {
+                String base = lastSegment(entryName.replace('\\', '/'));
+                String name = base.toLowerCase().endsWith(".zip") ? base.substring(0, base.length() - 4) : base;
+                File tmp = new File(zipFile.getParentFile(), "inner_" + sanitize(name) + ".zip");
+                try {
+                    try (InputStream in = zf.getInputStream(zf.getEntry(entryName))) { copy(in, tmp); }
+                    Result inner = importZip(tmp, modsDir, name, false);
+                    r.imported.addAll(inner.imported);
+                    for (String err : inner.errors) r.errors.add(base + ": " + err);
+                } finally {
+                    //noinspection ResultOfMethodCallIgnored
+                    tmp.delete();
+                }
             }
         } catch (IOException ex) {
             r.errors.add(ex.getMessage() != null ? ex.getMessage() : "I/O error");
