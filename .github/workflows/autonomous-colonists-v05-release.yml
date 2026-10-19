@@ -1,0 +1,91 @@
+name: Stage Autonomous Colonists v0.5 experimental
+
+on:
+  push:
+    branches: [feat/autonomous-colonists-1.7]
+    paths: ['.github/workflows/autonomous-colonists-v05-release.yml']
+
+permissions:
+  contents: read
+
+concurrency:
+  group: autonomous-colonists-v0.5.0-experimental
+  cancel-in-progress: false
+
+jobs:
+  stage:
+    if: github.repository == 'Borjabyxx/RimDroid' && github.ref == 'refs/heads/feat/autonomous-colonists-1.7'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      # Only transfer a hash-pinned public bundle; no checkout, build or game libraries.
+      - name: Validate and upload precompiled mod with documentation and test reports
+        shell: bash
+        run: |
+          python3 - <<'PYCODE'
+          import base64, hashlib, io, json, os, subprocess, tempfile, zipfile
+          from pathlib import Path
+          from xml.etree import ElementTree
+
+          cfg = {"repo":"Borjabyxx/RimDroid","tag":"v0.5.0-experimental","commit":"b5316869cbae082bdf51fb6ce747ca502a00d1a9","release":417249609,"blob":"c8c8d378c7d6c18c3f5b018c769da32f5f22ca14","bundleHash":"00c9c52fb5ad5326ac922c8e88419c6087905739b222b3960af6de40586454e4","bundleBytes":112598,"zipHash":"27a89efb84ff223c6e2da95e596e2953d0afdd2f48c8f3486448977647baf819","zipBytes":65134,"dllHash":"bef4c290c06f20f8b453ed0a4b6bad05022f07d0472c6c44449cc768fc037bf7","assets":["AutonomousColonists-RimWorld-1.7.zip","AutonomousColonists.dll","SHA256SUMS","build-report.json","scribe-smoke.json"],"modMembers":["AutonomousColonists/1.7/Assemblies/AutonomousColonists.dll","AutonomousColonists/AUTONOMIA_0.5.md","AutonomousColonists/About/About.xml","AutonomousColonists/INSTALAR.md","AutonomousColonists/LICENCIA.txt","AutonomousColonists/PRUEBAS_0.5.md","AutonomousColonists/RENDIMIENTO_0.5.md","AutonomousColonists/TestResults/action-tests.json","AutonomousColonists/TestResults/api-audit.json","AutonomousColonists/TestResults/core-tests.json","AutonomousColonists/TestResults/director-tests.json","AutonomousColonists/TestResults/packaging-tests.txt"]}
+          repo, tag, release_id = cfg["repo"], cfg["tag"], cfg["release"]
+          filename = "AutonomousColonists-RimWorld-1.7.zip"
+          def gh(*args):
+              result = subprocess.run(["gh", *args], text=True, capture_output=True, timeout=60)
+              if result.returncode:
+                  raise RuntimeError(result.stderr.strip())
+              return result.stdout
+          release = json.loads(gh("api", f"repos/{repo}/releases/{release_id}"))
+          assert release["draft"] and release["prerelease"]
+          assert release["tag_name"] == tag and release["target_commitish"] == cfg["commit"]
+          blob = json.loads(gh("api", f"repos/{repo}/git/blobs/{cfg['blob']}"))
+          data = base64.b64decode(blob["content"])
+          assert len(data) == cfg["bundleBytes"] and hashlib.sha256(data).hexdigest() == cfg["bundleHash"]
+          with tempfile.TemporaryDirectory(prefix="autonomy-v05-public-") as temporary:
+              root = Path(temporary)
+              with zipfile.ZipFile(io.BytesIO(data)) as bundle:
+                  assert len(bundle.namelist()) == len(cfg["assets"]) and set(bundle.namelist()) == set(cfg["assets"])
+                  assert bundle.testzip() is None
+                  for name in cfg["assets"]:
+                      assert Path(name).name == name
+                      (root / name).write_bytes(bundle.read(name))
+              archive = root / filename
+              assert archive.stat().st_size == cfg["zipBytes"] and hashlib.sha256(archive.read_bytes()).hexdigest() == cfg["zipHash"]
+              with zipfile.ZipFile(archive) as mod:
+                  assert len(mod.namelist()) == 12 and set(mod.namelist()) == set(cfg["modMembers"])
+                  assert mod.testzip() is None
+                  assert [n for n in mod.namelist() if n.endswith(".dll")] == ["AutonomousColonists/1.7/Assemblies/AutonomousColonists.dll"]
+                  own = mod.read("AutonomousColonists/1.7/Assemblies/AutonomousColonists.dll")
+                  assert hashlib.sha256(own).hexdigest() == cfg["dllHash"] and own == (root / "AutonomousColonists.dll").read_bytes()
+                  assert ElementTree.fromstring(mod.read("AutonomousColonists/About/About.xml")).findtext("modVersion") == "0.5.0-experimental"
+                  for name, count in (("core-tests.json", 40), ("director-tests.json", 50), ("action-tests.json", 45)):
+                      tests = json.loads(mod.read("AutonomousColonists/TestResults/" + name))
+                      assert tests["failures"] == 0 and len(tests["tests"]) == count and all(t["passed"] for t in tests["tests"])
+                      assert tests["androidExecuted"] is False
+                  audit = json.loads(mod.read("AutonomousColonists/TestResults/api-audit.json"))
+                  assert "StartJob" in audit["nativeExecutionMemberReferences"]
+              build = json.loads((root / "build-report.json").read_text())
+              assert build["sourceCommit"] == cfg["commit"] and build["sourceTreeDirty"] is False
+              assert build["sha256"] == cfg["zipHash"] and build["androidExecuted"] is False
+              assert (root / "SHA256SUMS").read_text() == cfg["zipHash"] + "  " + filename + "\n"
+              scribe = json.loads((root / "scribe-smoke.json").read_text())
+              assert scribe["xmlSaved"] is True and scribe["passed"] is False
+              existing = {a["name"] for a in release["assets"]}
+              assert existing <= set(cfg["assets"])
+              for name in cfg["assets"]:
+                  if name not in existing:
+                      gh("release", "upload", tag, str(root / name), "--repo", repo)
+                  verify = root / ("verify-" + name.replace(".", "_"))
+                  verify.mkdir()
+                  gh("release", "download", tag, "--repo", repo, "--pattern", name, "--dir", str(verify))
+                  assert (verify / name).read_bytes() == (root / name).read_bytes()
+          print(json.dumps({"release": release_id, "sourceCommit": cfg["commit"], "sha256": cfg["zipHash"],
+                            "allUploadedBytesRedownloadedAndVerified": True, "compiled": False,
+                            "proprietaryLibrariesIncluded": False, "nativeJobsTested": False, "androidTested": False}, indent=2))
+          with open(os.environ["GITHUB_STEP_SUMMARY"], "a") as summary:
+              summary.write(f"Verified and transferred existing v0.5 artifacts for `{cfg['commit']}`. No compilation or game libraries. All uploaded bytes redownloaded and compared. Scribe load and native game/Android validation remain pending.\n\nSHA-256: `{cfg['zipHash']}`. Publication follows separate review of the receipt.\n")
+          PYCODE
