@@ -1,0 +1,112 @@
+name: Stage Autonomous Director v0.4 experimental
+
+on:
+  push:
+    branches: [feat/autonomous-colonists-1.7]
+    paths:
+      - '.github/workflows/autonomous-director-release.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: autonomous-colonists-v0.4.0-experimental
+  cancel-in-progress: false
+
+jobs:
+  stage:
+    if: github.repository == 'Borjabyxx/RimDroid' && github.ref == 'refs/heads/feat/autonomous-colonists-1.7'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      # Transfer only the already built public files. No checkout, compilation or game DLLs.
+      # This uses the hosted runner's normal upload credentials; cloud API auth cannot upload assets.
+      - name: Verify, upload and redownload the public v0.4 artifacts
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import base64, hashlib, io, json, os, subprocess, tempfile, zipfile
+          from pathlib import Path
+          from xml.etree import ElementTree
+
+          repo = "Borjabyxx/RimDroid"
+          tag = "v0.4.0-experimental"
+          commit = "3a3b7e655f7628043d5f451cbb66c097512fb5ad"
+          release_id = 417221851
+          blob_sha = "9d8ca6869b211ee1b2ba1acf8987f9a04b615e46"
+          bundle_sha = "4988081e7ee86c2aeea68901bdd938d873b278c86c83fb216086b7a3c1d88de7"
+          zip_sha = "4fd32840de2e88e2db6cd6b4de5d309c95ece9e98e5b4bb004106dfa09a28669"
+          dll_sha = "d8781c12b16d5f82d33cd5c071bd10828dbc5750c64c502334bb201304774c5d"
+          filename = "AutonomousColonists-RimWorld-1.7.zip"
+          allowed = {
+              filename, "AutonomousColonists.dll", "SHA256SUMS", "build-report.json",
+              "api-audit.json", "core-tests.json", "director-tests.json", "packaging-tests.txt",
+              "scribe-smoke.json", "ARQUITECTURA_DIRECTOR.md", "RENDIMIENTO.md", "PRUEBAS.md",
+          }
+          mod_allowed = {
+              "AutonomousColonists/About/About.xml",
+              "AutonomousColonists/1.7/Assemblies/AutonomousColonists.dll",
+              "AutonomousColonists/INSTALAR.md", "AutonomousColonists/LICENCIA.txt",
+          }
+
+          def gh(*args):
+              result = subprocess.run(["gh", *args], text=True, capture_output=True, timeout=60)
+              if result.returncode:
+                  raise RuntimeError(result.stderr.strip())
+              return result.stdout
+
+          release = json.loads(gh("api", f"repos/{repo}/releases/{release_id}"))
+          assert release["tag_name"] == tag and release["prerelease"] is True
+          assert release["draft"] is True, "Never modify a published release"
+          assert release["target_commitish"] == commit
+          blob = json.loads(gh("api", f"repos/{repo}/git/blobs/{blob_sha}"))
+          data = base64.b64decode(blob["content"])
+          assert len(data) == 83976 and hashlib.sha256(data).hexdigest() == bundle_sha
+
+          with tempfile.TemporaryDirectory(prefix="autonomous-director-public-") as temporary:
+              root = Path(temporary)
+              with zipfile.ZipFile(io.BytesIO(data)) as bundle:
+                  assert len(bundle.namelist()) == len(allowed) and set(bundle.namelist()) == allowed
+                  assert bundle.testzip() is None
+                  for name in sorted(allowed):
+                      (root / name).write_bytes(bundle.read(name))
+              archive = root / filename
+              assert archive.stat().st_size == 35094
+              assert hashlib.sha256(archive.read_bytes()).hexdigest() == zip_sha
+              with zipfile.ZipFile(archive) as mod:
+                  assert len(mod.namelist()) == 4 and set(mod.namelist()) == mod_allowed
+                  assert mod.testzip() is None
+                  own = mod.read("AutonomousColonists/1.7/Assemblies/AutonomousColonists.dll")
+                  assert hashlib.sha256(own).hexdigest() == dll_sha
+                  assert own == (root / "AutonomousColonists.dll").read_bytes()
+                  about = ElementTree.fromstring(mod.read("AutonomousColonists/About/About.xml"))
+                  assert about.findtext("modVersion") == "0.4.0-experimental"
+              report = json.loads((root / "build-report.json").read_text())
+              assert report["sourceCommit"] == commit and report["sourceTreeDirty"] is False
+              assert report["sha256"] == zip_sha and report["androidExecuted"] is False
+              for name, count in (("core-tests.json", 40), ("director-tests.json", 50)):
+                  tests = json.loads((root / name).read_text())
+                  assert tests["failures"] == 0 and len(tests["tests"]) == count
+                  assert all(t["passed"] for t in tests["tests"])
+              assert (root / "SHA256SUMS").read_text() == f"{zip_sha}  {filename}\n"
+              existing = {a["name"]: a for a in release["assets"]}
+              assert set(existing) <= allowed
+              for name in sorted(allowed):
+                  source = root / name
+                  if name not in existing:
+                      gh("release", "upload", tag, str(source), "--repo", repo)
+                  verify = root / ("verify-" + name.replace(".", "_"))
+                  verify.mkdir()
+                  gh("release", "download", tag, "--repo", repo, "--pattern", name, "--dir", str(verify))
+                  assert (verify / name).read_bytes() == source.read_bytes()
+
+          print(json.dumps({"releaseId": release_id, "tag": tag, "sourceCommit": commit,
+                            "sha256": zip_sha, "assets": sorted(allowed), "downloadedBytesVerified": True,
+                            "compiled": False, "gameLibrariesIncluded": False}, indent=2))
+          with open(os.environ["GITHUB_STEP_SUMMARY"], "a", encoding="utf-8") as summary:
+              summary.write(f"Staged {len(allowed)} public artifacts from `{commit}`. All downloaded and byte-verified. No build or proprietary libraries.\n\nZIP SHA-256: `{zip_sha}`. Release publication is a separate verified step.\n")
+          PY
