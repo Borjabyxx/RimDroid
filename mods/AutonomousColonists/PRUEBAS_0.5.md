@@ -1,10 +1,10 @@
-# Validación v0.5 experimental — 19/10/2026
+# Validación v0.5.1 experimental — 19/10/2026
 
 ## Ejecutado
 
 - 40/40 pruebas C# v0.3 originales, sin editar Tests/Program.cs.
 - 50/50 pruebas del director v0.4 originales, sin editar Tests/Director/Program.cs. Conservan semántica de ejecución apagada y propuestas sin ejecutor autorizado.
-- 45/45 nuevas pruebas de módulos/frontera de ejecución. Integran núcleo y dispatcher con un runtime de pruebas que registra llamadas; **no ejecutan givers ni jobs nativos**.
+- 50/50 pruebas de módulos/frontera de ejecución (45 iniciales y cinco de v0.5.1). Integran núcleo y dispatcher con un runtime de pruebas que registra llamadas; **no ejecutan givers ni jobs nativos**. Las cinco nuevas verifican urgencia global, fallback detrás de otras emergencias, prioridad manual de Doctor, Medicina entre empates y precedencia de seguridad.
 - 10/10 Python originales sin cambios, validando entrada privada, lista cerrada, rechazo de referencias propietarias, traversal, duplicados y symlinks.
 - 1000 escenarios nuevos reproducibles de permisos/observación/exclusiones/peligro y ejecución; se conservan 400 escenarios del director, 200 del asignador y pruebas de estabilidad.
 - Build real Release .NET 10 contra Assembly-CSharp 1.7.9786.4087, UnityStubs y Waylith del usuario, con advertencias como errores: cero advertencias y errores.

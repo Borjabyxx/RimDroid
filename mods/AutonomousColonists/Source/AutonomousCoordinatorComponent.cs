@@ -149,7 +149,9 @@ public sealed class AutonomousCoordinatorComponent : GameComponent
                         CanDoctor: NativeActionRuntime.WorkAllowed(pawn, WorkTypeDefOf.Doctor), SelfTendAllowed: pawn.playerSettings?.selfTend == true,
                         MedicalRestNeeded: HealthAIUtility.ShouldSeekMedicalRest(pawn), PatientsNeedCare: patients, UrgentPatient: urgent,
                         ApparelReviewDue: pawn.apparel != null && pawn.mindState != null && Find.TickManager.TicksGame >= pawn.mindState.nextApparelOptimizeTick,
-                        RescueNeeded: rescue, CanRescue: pawn.workSettings?.Initialized == true && pawn.workSettings.EverWork));
+                        RescueNeeded: rescue, CanRescue: pawn.workSettings?.Initialized == true && pawn.workSettings.EverWork,
+                        DoctorPriority: pawn.workSettings?.Initialized == true ? pawn.workSettings.GetPriority(WorkTypeDefOf.Doctor) : 4,
+                        MedicineSkill: pawn.skills?.GetSkill(SkillDefOf.Medicine)?.Level ?? 0));
                 }
             }
             int tick = Find.TickManager.TicksGame;

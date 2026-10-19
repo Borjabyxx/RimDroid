@@ -131,7 +131,7 @@ def build(directory: Path, output: Path, verify_only: bool) -> None:
     source_files += [ROOT / "About/About.xml", ROOT / "INSTALAR.md", ROOT / "LICENCIA.txt",
                      ROOT / "AUTONOMIA_0.5.md", ROOT / "PRUEBAS_0.5.md", ROOT / "RENDIMIENTO_0.5.md"]
     (output / "build-report.json").write_text(json.dumps({
-        "version": "0.5.0-experimental", "sdk": sdk, "references": references,
+        "version": "0.5.1-experimental", "sdk": sdk, "references": references,
         "zip": destination.name, "sha256": sha, "members": sorted(MEMBERS),
         "sourceCommit": commit, "sourceTreeDirty": dirty,
         "sourceFiles": {str(p.relative_to(ROOT)): hashlib.sha256(p.read_bytes()).hexdigest() for p in sorted(source_files)},

@@ -64,6 +64,28 @@ static class Suite
             ("observation overrides all action flags", () => { var d = Director(); d.ObservationOnly = true; var e = new ExecutionCoordinator(); var r = new Runtime(); Run(e, r, d.Evaluate([Pawn() with { CanDoctor = true, PatientsNeedCare = true }], 0), observation: true); Check(r.Prepares == 0 && d.ExecutedCount == 0); }),
             ("exceptions propagate for game component fail-closed latch", () => { var r = new Runtime { Throw = true }; bool thrown = false; try { Run(new(), r); } catch (InvalidOperationException) { thrown = true; } Check(thrown && r.Starts == 0); }),
             ("unsupported action cannot reach runtime", () => { var r = new Runtime(); Run(new(), r, [C(action: ProposedAction.ReviewWorkAllocation)]); Check(r.Prepares == 0); }),
+            ("global critical urgency precedes earlier ordinary actors", () => { var r = new Runtime(); Run(new(), r, [C("A"), C("B"), C("Z", urgency: Urgency.Critical)], profile: AutonomyProfile.Conservative); Check(r.Pawns.SetEquals(["Z"])); }),
+            ("fallback waits behind another actors critical action", () => {
+                var r = new Runtime { MissingAction = ProposedAction.SelfTend };
+                Run(new(), r, [C("A", ProposedAction.SelfTend, Urgency.Critical), C("A") with { Authorization = Authorization.Conflict }, C("B", ProposedAction.Rest, Urgency.Critical)]);
+                Check(r.Actions.SequenceEqual([ProposedAction.Rest, ProposedAction.Eat]));
+            }),
+            ("doctor manual work tier precedes higher skill lower tier", () => {
+                var d = Director(); var r = new Runtime();
+                var a = Pawn("A") with { Food = .9f, CanDoctor = true, PatientsNeedCare = true, UrgentPatient = true, DoctorPriority = 4, MedicineSkill = 20 };
+                var b = a with { Id = "B", DoctorPriority = 1, MedicineSkill = 0 };
+                Run(new(), r, d.Evaluate([a, b], 0), profile: AutonomyProfile.Conservative); Check(r.Pawns.SetEquals(["B"]));
+            }),
+            ("medicine skill breaks equal work tier before actor id", () => {
+                var d = Director(); var r = new Runtime();
+                var a = Pawn("A") with { Food = .9f, CanDoctor = true, PatientsNeedCare = true, DoctorPriority = 2, MedicineSkill = 2 };
+                Run(new(), r, d.Evaluate([a, a with { Id = "B", MedicineSkill = 20 }], 0), profile: AutonomyProfile.Conservative); Check(r.Pawns.SetEquals(["B"]));
+            }),
+            ("global safety precedes strongest medical score", () => {
+                var d = Director(); var r = new Runtime();
+                var doctor = Pawn("A") with { Food = .9f, CanDoctor = true, PatientsNeedCare = true, UrgentPatient = true, DoctorPriority = 1, MedicineSkill = 20 };
+                Run(new(), r, d.Evaluate([doctor, Pawn("Z") with { Threat = true }], 0), profile: AutonomyProfile.Conservative); Check(r.Actions.SequenceEqual([ProposedAction.SeekSafety]) && r.Pawns.SetEquals(["Z"]));
+            }),
             ("randomized authorization and execution invariants", Fuzz)
         ];
         var results = new List<object>(); int failures = 0;

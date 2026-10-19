@@ -52,6 +52,7 @@ internal sealed class ExecutionCoordinator
     private readonly Dictionary<string, ExecutionMemory> last = new(StringComparer.Ordinal);
     private readonly Dictionary<(string Pawn, int Map, ProposedAction Action), int> attempts = new();
     private readonly HashSet<string> claimed = new(StringComparer.Ordinal);
+    private readonly PriorityQueue<int, (int Urgency, int Priority, int Rotation)> pending = new(64);
     private readonly Dictionary<string, int> present = new(StringComparer.Ordinal);
     private int cursor;
     public long ExecutedCount { get; private set; }
@@ -79,22 +80,29 @@ internal sealed class ExecutionCoordinator
         int cooldown = profile == AutonomyProfile.Conservative ? 2500 : profile == AutonomyProfile.Advanced ? 750 : 1250;
         int executed = 0, start = cursor % decisions.Count;
         claimed.Clear();
-        for (int offset = 0; offset < decisions.Count && LastProbes < 4 && executed < maximum; offset++)
+        pending.Clear();
+        for (int i = 0; i < decisions.Count; i++)
+            if (decisions[i].Authorization == Authorization.AwaitingValidation) Enqueue(i, decisions, start);
+        while (pending.Count > 0 && LastProbes < 4 && executed < maximum)
         {
-            int index = (start + offset) % decisions.Count;
+            int index = pending.Dequeue();
             var c = decisions[index];
-            if (c.Authorization != Authorization.AwaitingValidation) continue;
             if (last.TryGetValue(c.PawnId, out var previous) && previous.MapId == c.MapId && tick >= previous.LastTick && tick - previous.LastTick < cooldown)
             { report(c, Authorization.Cooldown, "Periodo de intervención mínima"); continue; }
             cursor = index + 1;
             bool accepted = TryCandidate(c, tick, runtime, report);
-            // If the best action has no usable alternative, consider this actor's lower candidates.
-            // They were not stability/manual vetoes; they only lost the activity conflict.
-            for (int i = index + 1; !accepted && i < decisions.Count && LastProbes < 4 && decisions[i].PawnId == c.PawnId; i++)
-                if (decisions[i].Authorization == Authorization.Conflict && ExecutionRules.Supports(decisions[i].Action))
-                    accepted = TryCandidate(decisions[i], tick, runtime, report);
             if (accepted) executed++;
+            else
+                for (int i = index + 1; i < decisions.Count && decisions[i].PawnId == c.PawnId; i++)
+                    if (decisions[i].Authorization == Authorization.Conflict && ExecutionRules.Supports(decisions[i].Action))
+                    { Enqueue(i, decisions, start); break; }
         }
+    }
+    private void Enqueue(int index, IReadOnlyList<DecisionCandidate> decisions, int start)
+    {
+        var c = decisions[index];
+        // Global urgency first; equal candidates rotate fairly between actors.
+        pending.Enqueue(index, (-(int)c.Urgency, -c.Priority, (index - start + decisions.Count) % decisions.Count));
     }
     private bool TryCandidate(DecisionCandidate c, int tick, IActionRuntime runtime, Action<DecisionCandidate, Authorization, string> report)
     {

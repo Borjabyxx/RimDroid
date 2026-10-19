@@ -22,7 +22,8 @@ internal readonly record struct PawnObservation(string Id, int MapId, float? Foo
     bool NeedsTend = false, bool UrgentCare = false, bool CanDoctor = false,
     bool SelfTendAllowed = false, bool MedicalRestNeeded = false,
     bool PatientsNeedCare = false, bool UrgentPatient = false,
-    bool ApparelReviewDue = false, bool RescueNeeded = false, bool CanRescue = false);
+    bool ApparelReviewDue = false, bool RescueNeeded = false, bool CanRescue = false,
+    int DoctorPriority = 4, int MedicineSkill = 0);
 
 internal readonly record struct DecisionCandidate(string PawnId, int MapId, NeedKind Need,
     int Priority, Urgency Urgency, string Reason, ModuleKind Module, ProposedAction Action,

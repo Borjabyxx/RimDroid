@@ -1,5 +1,12 @@
 # Cambios
 
+## 0.5.1-experimental — 19/10/2026
+
+- Prioridad global de urgencias antes de consumir el presupuesto de acciones; rotación entre empates.
+- Las alternativas se vuelven a ordenar globalmente tras fallar una preparación, conservando preferencia de otras emergencias.
+- Coordinación de médicos por prioridad Doctor y, dentro de esa prioridad, habilidad de Medicina. Seguridad mantiene precedencia.
+- Cinco regresiones nuevas: 50 pruebas de acciones, además de las 40 + 50 C# y 10 Python conservadas. La v0.5.0 inicial no se sobrescribe.
+
 ## 0.5.0-experimental — 19/10/2026
 
 - Frontera de ejecución real: buscadores nativos, lista de JobDef permitidos, revalidación y reservas antes de StartJob automático. No usa órdenes forzadas del jugador.

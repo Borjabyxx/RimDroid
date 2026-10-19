@@ -3,7 +3,7 @@
   <name>Autonomous Colonists (Experimental)</name>
   <author>Community prototype</author>
   <packageId>autonomyinitiative.autonomouscolonists</packageId>
-  <modVersion>0.5.0-experimental</modVersion>
+  <modVersion>0.5.1-experimental</modVersion>
   <supportedVersions>
     <li>1.7</li>
   </supportedVersions>

@@ -73,10 +73,13 @@ internal sealed class HealthAutonomy : IAutonomyModule
         if (p.MedicalRestNeeded)
             Add(p, candidates, ProposedAction.MedicalRest, p.UrgentCare, "Recuperación médica; respetar horario y cama disponible");
     }
-    private static void Add(in PawnObservation p, List<DecisionCandidate> candidates, ProposedAction action, bool urgent, string reason) =>
-        candidates.Add(new(p.Id, p.MapId, NeedKind.Health, urgent ? 980 : 650, urgent ? Urgency.Critical : Urgency.Important,
+    private static void Add(in PawnObservation p, List<DecisionCandidate> candidates, ProposedAction action, bool urgent, string reason)
+    {
+        int doctorScore = action == ProposedAction.TendPatient ? (4 - Math.Clamp(p.DoctorPriority, 1, 4)) * 8 + Math.Clamp(p.MedicineSkill, 0, 20) / 4 : 0;
+        candidates.Add(new(p.Id, p.MapId, NeedKind.Health, (urgent ? 980 : 650) + doctorScore, urgent ? Urgency.Critical : Urgency.Important,
             reason, ModuleKind.Health, action, DecisionConditions.Available | DecisionConditions.NoManualOrder | DecisionConditions.AlternativeKnown,
             (!p.Unavailable ? DecisionConditions.Available : 0) | (!p.ManualOrder && !p.Drafted ? DecisionConditions.NoManualOrder : 0)));
+    }
 }
 
 internal sealed class ApparelAutonomy : IAutonomyModule

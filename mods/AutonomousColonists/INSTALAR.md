@@ -1,4 +1,4 @@
-# Instalación de Autonomous Colonists 0.5 experimental
+# Instalación de Autonomous Colonists 0.5.1 experimental
 
 Mod independiente de RimWorld 1.7 (.NET 10), no un APK. Compilación contra DLL reales verificada; ejecución real en juego/Android pendiente. El ZIP incluye la DLL propia, instrucciones, licencia, documentación y resultados automatizados. No contiene bibliotecas propietarias.
 

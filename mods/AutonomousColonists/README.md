@@ -1,4 +1,4 @@
-# Autonomous Colonists 0.5 experimental — RimWorld 1.7 / .NET 10
+# Autonomous Colonists 0.5.1 experimental — RimWorld 1.7 / .NET 10
 
 Mod independiente con Autonomous Director, perfiles Conservador/Equilibrado/Avanzado y acciones automáticas reales mediante los JobGiver, WorkGiver y JobTracker del juego. Equilibrado sigue predeterminado, con activación voluntaria por partida. Al actualizar desde v0.3/v0.4 no se habilitan acciones nuevas automáticamente.
 
