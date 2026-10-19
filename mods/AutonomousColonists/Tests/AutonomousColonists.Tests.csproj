@@ -9,6 +9,7 @@
   </PropertyGroup>
   <ItemGroup>
     <Compile Remove="Director/**/*.cs" />
+    <Compile Remove="Actions/**/*.cs" />
     <Compile Include="../Source/Core/*.cs" Link="Core/%(Filename)%(Extension)" />
   </ItemGroup>
 </Project>

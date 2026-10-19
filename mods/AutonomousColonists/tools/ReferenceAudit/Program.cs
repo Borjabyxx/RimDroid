@@ -36,9 +36,21 @@ object Inspect(string path, bool mod = false)
         machine = pe.PEHeaders.CoffHeader.Machine.ToString(), flags = pe.PEHeaders.CorHeader.Flags.ToString(),
         sha256 = Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(path))).ToLowerInvariant(), references };
 }
+string[] ExecutionReferences(string path)
+{
+    using var stream = File.OpenRead(path);
+    using var pe = new PEReader(stream);
+    var reader = pe.GetMetadataReader();
+    var methods = reader.MemberReferences.Select(h => reader.GetString(reader.GetMemberReference(h).Name)).ToHashSet(StringComparer.Ordinal);
+    string[] required = ["StartJob", "TryIssueJobPackage", "TryMakePreToilReservations", "ClearReservationsForJob", "ReturnToPool", "AllowsMedicine", "GetCurrentRespectedRestriction"];
+    if (required.Any(m => !methods.Contains(m)) || methods.Contains("TryTakeOrderedJob"))
+        throw new InvalidDataException("Missing native execution boundary or unexpected player-ordered-job API");
+    return required;
+}
 var report = new { privateReferences = new[] { "Assembly-CSharp.dll", "UnityStubs.dll", "Waylith.dll" }
     .Select(name => Inspect(Path.Combine(args[0], name))).ToArray(), mod = Inspect(args[1], true),
-    method = "Static PE metadata only. Compiler resolves API signatures. No game code executed.",
+    nativeExecutionMemberReferences = ExecutionReferences(args[1]),
+    method = "Static PE metadata only. Native method references verified; compiler resolves signatures. This is NOT execution of native jobs.",
     androidExecuted = false };
 Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(args[2]))!);
 File.WriteAllText(args[2], JsonSerializer.Serialize(report, new JsonSerializerOptions { WriteIndented = true }));

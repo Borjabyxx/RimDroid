@@ -29,6 +29,8 @@ public sealed class AutonomyGameComponent : GameComponent
     public double LastMilliseconds { get; private set; }
     public int LastAssignments { get; private set; }
     public int LastWrites { get; private set; }
+    private readonly List<string> coverageWarnings = new();
+    public string CoverageWarnings => coverageWarnings.Count == 0 ? "Sin carencias urgentes detectadas" : string.Join("; ", coverageWarnings);
     public string Status { get; private set; } = "En espera";
     public bool EnabledForSave => enabledForSave;
     private PriorityLedger Ledger => ledger ??= new(originals, applied, manualLocks, seen);
@@ -207,6 +209,7 @@ public sealed class AutonomyGameComponent : GameComponent
             if (!immediate && !forceRefresh && lastWorkTick >= 0 && tick >= lastWorkTick && tick - lastWorkTick < interval) return;
             var watch = Stopwatch.StartNew();
             LastAssignments = 0; LastWrites = 0;
+            coverageWarnings.Clear();
             foreach (Map map in Find.Maps) ApplyMap(map, options);
             watch.Stop();
             LastMilliseconds = watch.Elapsed.TotalMilliseconds;
@@ -250,8 +253,20 @@ public sealed class AutonomyGameComponent : GameComponent
         foreach (WorkTypeDef work in Works)
         {
             int requested = options.WorkTargets.GetValueOrDefault(work.defName, -1);
+            bool importantPending = work.defName == "Doctor" && map.mapPawns.FreeColonistsSpawned.Any(RimWorld.HealthAIUtility.ShouldBeTendedNowByPlayer) ||
+                work.defName == "Firefighter" && map.fireWatcher?.LargeFireDangerPresent == true;
+            if (importantPending && work.defName == "Doctor")
+            {
+                int waiting = map.mapPawns.FreeColonistsSpawned.Count(p => RimWorld.HealthAIUtility.ShouldBeTendedNowByPlayer(p) &&
+                    !map.mapPawns.FreeColonistsSpawned.Any(d => d.CurJob?.def == RimWorld.JobDefOf.TendPatient && d.CurJob.targetA.Thing == p));
+                if (waiting > 0) coverageWarnings.Add($"Mapa {map.uniqueID}: {waiting} pacientes pendientes sin atención en curso");
+            }
+            if (importantPending && work.defName == "Firefighter" && !map.mapPawns.FreeColonistsSpawned.Any(p =>
+                p.CurJob?.def == RimWorld.JobDefOf.BeatFire || p.CurJob?.def == RimWorld.JobDefOf.ExtinguishFiresNearby))
+                coverageWarnings.Add($"Mapa {map.uniqueID}: incendio importante sin extinción en curso");
             if (requested == 0)
             {
+                if (importantPending) coverageWarnings.Add($"Mapa {map.uniqueID}: {work.LabelCap} pendiente; gestión pausada por el jugador");
                 foreach (Pawn pawn in pawns) RestoreCell(pawn, work);
                 continue;
             }
@@ -267,6 +282,8 @@ public sealed class AutonomyGameComponent : GameComponent
                     Ledger.Applied.TryGetValue(key, out int previous) && previous <= (WorkAllocator.Housework(work.defName) ? 3 : 2));
             }
             requests.Add(new(work.defName, pawns.Count, workers, requested, work.relevantSkills?.Count > 0));
+            if (importantPending && !workers.Any(w => w.Available && !w.Disabled && w.Current > 0))
+                coverageWarnings.Add($"Mapa {map.uniqueID}: {work.LabelCap} sin trabajador elegible (se respetan 0 y exclusiones)");
         }
         var byWork = Works.ToDictionary(w => w.defName, StringComparer.Ordinal);
         foreach (Assignment assignment in WorkAllocator.Allocate(requests, options.Hysteresis))
@@ -316,7 +333,7 @@ public sealed class AutonomyGameComponent : GameComponent
         recovering.Clear();
     }
 
-    private static bool HasManualOrder(Pawn pawn) => pawn.CurJob?.playerForced == true || pawn.CurJob?.playerInterruptedForced == true;
+    private static bool HasManualOrder(Pawn pawn) => NativeActionRuntime.Manual(pawn);
     private static bool CanWrite(Pawn pawn)
     {
         var coordinator = Current.Game.GetComponent<AutonomousCoordinatorComponent>();

@@ -1,5 +1,16 @@
 # Cambios
 
+## 0.5.0-experimental — 19/10/2026
+
+- Frontera de ejecución real: buscadores nativos, lista de JobDef permitidos, revalidación y reservas antes de StartJob automático. No usa órdenes forzadas del jugador.
+- Alimentación permitida, descanso en cama, atención médica/autocuidado autorizado, reposo médico, Wear del optimizador nativo, rescate, huida configurada y apagar fuego propio.
+- Permiso de acciones nuevo por partida apagado al migrar, selección por módulos, observación sin buscadores y Equilibrado conservado.
+- Límites por perfil/actor, rotación, backoff y fallback si no hay alternativa; solo jobs aceptados aumentan Ejecutadas. Reanudación mediante cola nativa de trabajos suspendibles.
+- Protección ampliada de órdenes pendientes, capacidades, horarios, políticas, zonas, pacientes excluidos, carga y trabajos críticos. Sin defensa armada automática ni cambios de equipo militar.
+- Avisos de atención médica/incendio pendiente sin cobertura elegible. Asignador y pruebas v0.3/v0.4 intactos.
+- 45 pruebas adicionales, 1000 escenarios aleatorios, benchmarks y auditoría de referencias a métodos de ejecución reales; nuevo workflow público separado.
+- ZIP ampliado con documentación y resultados. Guardar/cargar real y jobs en juego/Android siguen pendientes; Scribe aislado bloqueado por dependencias originales ausentes.
+
 ## 0.4.0-experimental — 19/10/2026
 
 - AutonomousDecisionCoordinator puro y AutonomousCoordinatorComponent por partida; se conserva intacto el adaptador histórico v0.2.

@@ -32,6 +32,11 @@ internal sealed class SafetyAutonomy : IAutonomyModule
     public ModuleKind Kind => ModuleKind.Safety;
     public void Propose(in PawnObservation pawn, ActorMemory memory, DirectorPolicy policy, List<DecisionCandidate> candidates)
     {
+        if (pawn.RescueNeeded && pawn.CanRescue)
+            candidates.Add(new(pawn.Id, pawn.MapId, NeedKind.Safety, 850, Urgency.Important,
+                "Colono caído pendiente de rescate; validar paciente, cama y ruta sin peligro", Kind, ProposedAction.Rescue,
+                DecisionConditions.Available | DecisionConditions.NoManualOrder | DecisionConditions.AlternativeKnown,
+                (!pawn.Unavailable ? DecisionConditions.Available : 0) | (!pawn.ManualOrder && !pawn.Drafted ? DecisionConditions.NoManualOrder : 0)));
         if (!pawn.Threat && !pawn.Fire && !pawn.ImmediateDanger) return;
         string reason = pawn.ImmediateDanger ? "Peligro inmediato: colono ardiendo" : pawn.Fire ? "Incendio importante en el mapa" : "Amenaza detectada en el mapa";
         reason += pawn.NonCombatant ? "; no combatiente" : pawn.DefenseAuthorized ? "; respuesta defensiva autorizada por el jugador" : "; defensa no autorizada";
@@ -56,5 +61,33 @@ internal sealed class WorkAutonomy : IAutonomyModule
     }
 }
 
-// HealthAutonomy and ApparelAutonomy will implement IAutonomyModule in a later phase.
-// Health is observed as context now; neither module has an executor in v0.4.
+internal sealed class HealthAutonomy : IAutonomyModule
+{
+    public ModuleKind Kind => ModuleKind.Health;
+    public void Propose(in PawnObservation p, ActorMemory memory, DirectorPolicy policy, List<DecisionCandidate> candidates)
+    {
+        if (p.NeedsTend && p.SelfTendAllowed && p.CanDoctor)
+            Add(p, candidates, ProposedAction.SelfTend, p.UrgentCare, "Autocuidado permitido; validar medicina y reservas");
+        if (p.CanDoctor && p.PatientsNeedCare)
+            Add(p, candidates, ProposedAction.TendPatient, p.UrgentPatient, "Paciente pendiente; priorizar urgencia y coordinar reservas");
+        if (p.MedicalRestNeeded)
+            Add(p, candidates, ProposedAction.MedicalRest, p.UrgentCare, "Recuperación médica; respetar horario y cama disponible");
+    }
+    private static void Add(in PawnObservation p, List<DecisionCandidate> candidates, ProposedAction action, bool urgent, string reason) =>
+        candidates.Add(new(p.Id, p.MapId, NeedKind.Health, urgent ? 980 : 650, urgent ? Urgency.Critical : Urgency.Important,
+            reason, ModuleKind.Health, action, DecisionConditions.Available | DecisionConditions.NoManualOrder | DecisionConditions.AlternativeKnown,
+            (!p.Unavailable ? DecisionConditions.Available : 0) | (!p.ManualOrder && !p.Drafted ? DecisionConditions.NoManualOrder : 0)));
+}
+
+internal sealed class ApparelAutonomy : IAutonomyModule
+{
+    public ModuleKind Kind => ModuleKind.Apparel;
+    public void Propose(in PawnObservation p, ActorMemory memory, DirectorPolicy policy, List<DecisionCandidate> candidates)
+    {
+        if (!p.ApparelReviewDue) return;
+        candidates.Add(new(p.Id, p.MapId, NeedKind.Apparel, 150, Urgency.Growing,
+            "Revisar ropa, desgaste y abrigo con la política de vestimenta nativa", Kind, ProposedAction.OptimizeApparel,
+            DecisionConditions.Available | DecisionConditions.NoManualOrder | DecisionConditions.AlternativeKnown,
+            (!p.Unavailable ? DecisionConditions.Available : 0) | (!p.ManualOrder && !p.Drafted ? DecisionConditions.NoManualOrder : 0)));
+    }
+}

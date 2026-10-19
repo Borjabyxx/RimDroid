@@ -1,5 +1,7 @@
 # Próximas fases
 
+v0.5 integra acciones nativas de comida, camas, medicina, ropa, rescate y seguridad local; consultar AUTONOMIA_0.5.md para su alcance y validación pendiente. La lista inferior conserva también investigaciones anteriores; no implica que defensa armada o equipamiento militar estén implementados.
+
 1. Validar carga, opciones, órdenes forzadas, guardar/cargar, migración y restauración en RimWorld 1.7 real, en PC y Android por separado.
 2. Medir el adaptador completo con 1/5/20/50 colonos en el dispositivo Android; el benchmark actual solo mide la lógica pura en Linux x64.
 3. Mantener pruebas públicas en Actions; un runner privado queda aplazado hasta que se necesite automatizar compilaciones con referencias legales privadas.

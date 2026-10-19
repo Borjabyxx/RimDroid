@@ -28,6 +28,9 @@ public sealed class AutonomousColonistsMod : Mod
 {
     internal static AutonomousSettings? Settings;
     private static readonly AutonomyProfile[] Profiles = [AutonomyProfile.Conservative, AutonomyProfile.Balanced, AutonomyProfile.Advanced];
+    private static readonly (ActionModules Module, string Label)[] Modules =
+        [(ActionModules.Food, "Alimentación"), (ActionModules.Rest, "Descanso"), (ActionModules.Health, "Cuidados médicos"),
+         (ActionModules.Apparel, "Ropa"), (ActionModules.Safety, "Huida, fuego propio y rescate")];
     private Vector2 scroll;
     private bool showCoverage;
     private bool confirmLocks;
@@ -52,7 +55,7 @@ public sealed class AutonomousColonistsMod : Mod
         listing.Begin(contents);
         try
         {
-            listing.Label("Autonomous Colonists 0.4 experimental. Alimentación, descanso y seguridad: observación y propuestas.");
+            listing.Label("Autonomous Colonists 0.5 experimental — acciones automáticas con políticas del juego.");
             listing.Label("Respeta cambios manuales observables y trabajos desactivados (0). Activa prioridades numéricas en Trabajo.");
             listing.GapLine();
             listing.Label("Autonomous Director — configuración de esta partida");
@@ -70,8 +73,19 @@ public sealed class AutonomousColonistsMod : Mod
                 listing.CheckboxLabeled("Modo observación (sin escrituras)", ref observe, height: 40f);
                 if (observe != coordinator.ObservationOnly) coordinator.SetObservation(observe);
                 listing.Label("La observación activa suspende también cambios y restauraciones de prioridades.");
-                listing.Label("Sin observación, el gestor de trabajos conserva su activación independiente. Las nuevas acciones siguen siendo propuestas.");
-                listing.Label("Ejecución experimental de alimentación, descanso y seguridad: no disponible en v0.4.");
+                bool actions = coordinator.ActionsEnabled;
+                listing.CheckboxLabeled("Ejecutar acciones automáticas (experimental)", ref actions, height: 48f);
+                if (actions != coordinator.ActionsEnabled) coordinator.SetActions(actions);
+                listing.Label("Requiere director activo y observación desmarcada. Al actualizar desde v0.4, las acciones empiezan apagadas.");
+                foreach (var module in Modules)
+                {
+                    bool allowed = coordinator.ModuleEnabled(module.Module);
+                    bool before = allowed;
+                    listing.CheckboxLabeled(module.Label, ref allowed, height: 40f);
+                    if (allowed != before) coordinator.SetModule(module.Module, allowed);
+                }
+                listing.Label("Autocuidado solo con permiso del juego. La huida ante enemigos requiere respuesta Huir. No hay defensa armada automática ni cambios de zonas/equipo militar.");
+                listing.Label("Los trabajos se activan por separado abajo. Nunca se cancelan órdenes manuales ni se cambian horarios/políticas.");
                 listing.Label(coordinator.IntervalOverride == 0 ? "Intervalo: automático según perfil" : $"Intervalo: {coordinator.IntervalOverride} ticks");
                 if (Widgets.ButtonText(listing.GetRect(40f), "Usar intervalo del perfil")) coordinator.SetInterval(0);
                 int cadence = coordinator.IntervalOverride == 0 ? DirectorPolicy.For(coordinator.Profile).Interval : coordinator.IntervalOverride;
@@ -80,6 +94,7 @@ public sealed class AutonomousColonistsMod : Mod
                 listing.Label(coordinator.Status);
                 listing.Label($"Última evaluación: {(coordinator.LastEvaluation < 0 ? "pendiente" : coordinator.LastEvaluation.ToString())} ticks. {coordinator.LastMilliseconds:F2} ms; {coordinator.LastAllocatedBytes} bytes asignados.");
                 listing.Label($"Propuestas en esta sesión: {coordinator.ProposedCount}. Ejecutadas: {coordinator.ExecutedCount}.");
+                listing.Label($"Búsquedas de acciones en la última evaluación: {coordinator.LastActionProbes}/4.");
                 listing.Label("Último motivo: " + coordinator.LastReason);
                 if (Widgets.ButtonText(listing.GetRect(40f), "Evaluar propuestas ahora")) coordinator.EvaluateNow();
             }
@@ -104,7 +119,10 @@ public sealed class AutonomousColonistsMod : Mod
             settings.Hysteresis = stability;
             if (listing.ButtonText("Recalcular ahora")) director?.RecalculateNow();
             if (director != null)
+            {
                 listing.Label($"{director.Status}. Último cálculo: {director.LastMilliseconds:F2} ms, {director.LastAssignments} celdas, {director.LastWrites} cambios.");
+                listing.Label("Cobertura urgente: " + director.CoverageWarnings);
+            }
             listing.GapLine();
             listing.CheckboxLabeled("Mostrar cobertura por trabajo", ref showCoverage);
             if (showCoverage)

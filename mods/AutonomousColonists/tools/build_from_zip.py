@@ -19,6 +19,11 @@ MEMBERS = {
     "AutonomousColonists/1.7/Assemblies/AutonomousColonists.dll": ROOT / "1.7/Assemblies/AutonomousColonists.dll",
     "AutonomousColonists/LICENCIA.txt": ROOT / "LICENCIA.txt",
     "AutonomousColonists/INSTALAR.md": ROOT / "INSTALAR.md",
+    "AutonomousColonists/AUTONOMIA_0.5.md": ROOT / "AUTONOMIA_0.5.md",
+    "AutonomousColonists/PRUEBAS_0.5.md": ROOT / "PRUEBAS_0.5.md",
+    "AutonomousColonists/RENDIMIENTO_0.5.md": ROOT / "RENDIMIENTO_0.5.md",
+    **{"AutonomousColonists/TestResults/" + name: ROOT / "TestResults" / name for name in
+       ("core-tests.json", "director-tests.json", "action-tests.json", "packaging-tests.txt", "api-audit.json")},
 }
 
 
@@ -87,7 +92,7 @@ def build(directory: Path, output: Path, verify_only: bool) -> None:
     if not sdk.startswith("10."):
         raise RuntimeError(f"Se necesita .NET 10; encontrado {sdk}")
     output.mkdir(parents=True, exist_ok=True)
-    for name in ("AutonomousColonists-RimWorld-1.7.zip", "SHA256SUMS", "build-report.json", "api-audit.json", "core-tests.json", "director-tests.json", "packaging-tests.txt"):
+    for name in ("AutonomousColonists-RimWorld-1.7.zip", "SHA256SUMS", "build-report.json", "api-audit.json", "core-tests.json", "director-tests.json", "action-tests.json", "packaging-tests.txt"):
         (output / name).unlink(missing_ok=True)
     env = os.environ.copy()
     env["RIMWORLD_MANAGED_DIR"] = str(directory)
@@ -100,12 +105,19 @@ def build(directory: Path, output: Path, verify_only: bool) -> None:
                     "-c", "Release", "--", "--report", str(output / "core-tests.json")], check=True, cwd=ROOT)
     subprocess.run(["dotnet", "run", "--project", str(ROOT / "Tests/Director/AutonomousColonists.Director.Tests.csproj"),
                     "-c", "Release", "--", "--report", str(output / "director-tests.json")], check=True, cwd=ROOT)
+    subprocess.run(["dotnet", "run", "--project", str(ROOT / "Tests/Actions/AutonomousColonists.Actions.Tests.csproj"),
+                    "-c", "Release", "--", "--report", str(output / "action-tests.json")], check=True, cwd=ROOT)
     subprocess.run(["dotnet", "build", str(ROOT / "Source/AutonomousColonists.csproj"), "-c", "Release",
                     "--nologo", "-p:ContinuousIntegrationBuild=true", "-p:UseSharedCompilation=false"],
                    check=True, cwd=ROOT, env=env)
     dll = ROOT / "1.7/Assemblies/AutonomousColonists.dll"
     subprocess.run(["dotnet", "run", "--project", str(ROOT / "tools/ReferenceAudit/ReferenceAudit.csproj"),
                     "-c", "Release", "--", str(directory), str(dll), str(output / "api-audit.json")], check=True, cwd=ROOT)
+    (ROOT / "TestResults").mkdir(exist_ok=True)
+    for name in ("core-tests.json", "director-tests.json", "action-tests.json", "packaging-tests.txt", "api-audit.json"):
+        source, target = output / name, ROOT / "TestResults" / name
+        if source.resolve() != target.resolve():
+            shutil.copyfile(source, target)
     destination = output / "AutonomousColonists-RimWorld-1.7.zip"
     sha = package(destination)
     (output / "SHA256SUMS").write_text(f"{sha}  {destination.name}\n", encoding="utf-8")
@@ -116,9 +128,10 @@ def build(directory: Path, output: Path, verify_only: bool) -> None:
         commit, dirty = None, None
     source_files = [path for folder in ("Source", "Tests", "tools") for path in (ROOT / folder).rglob("*")
                     if path.suffix in (".cs", ".csproj", ".py") and not {"bin", "obj", "__pycache__"}.intersection(path.parts)]
-    source_files += [ROOT / "About/About.xml", ROOT / "INSTALAR.md", ROOT / "LICENCIA.txt"]
+    source_files += [ROOT / "About/About.xml", ROOT / "INSTALAR.md", ROOT / "LICENCIA.txt",
+                     ROOT / "AUTONOMIA_0.5.md", ROOT / "PRUEBAS_0.5.md", ROOT / "RENDIMIENTO_0.5.md"]
     (output / "build-report.json").write_text(json.dumps({
-        "version": "0.4.0-experimental", "sdk": sdk, "references": references,
+        "version": "0.5.0-experimental", "sdk": sdk, "references": references,
         "zip": destination.name, "sha256": sha, "members": sorted(MEMBERS),
         "sourceCommit": commit, "sourceTreeDirty": dirty,
         "sourceFiles": {str(p.relative_to(ROOT)): hashlib.sha256(p.read_bytes()).hexdigest() for p in sorted(source_files)},

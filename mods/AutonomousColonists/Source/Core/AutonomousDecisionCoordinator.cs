@@ -1,6 +1,6 @@
 namespace AutonomousColonists.Core;
 
-/// <summary>Deterministic, main-thread, proposal-only coordinator. No Verse references or job executor.</summary>
+/// <summary>Deterministic proposal coordinator. Verse execution has a separate revalidation boundary.</summary>
 internal sealed class AutonomousDecisionCoordinator
 {
     private readonly IAutonomyModule[] modules;
@@ -14,14 +14,16 @@ internal sealed class AutonomousDecisionCoordinator
     private int lastEvaluation = -1;
     public bool Enabled { get; set; }
     public bool ObservationOnly { get; set; } = true;
+    public bool ActionsEnabled { get; set; }
+    public ActionModules AllowedModules { get; set; } = ActionModules.All;
     public bool Faulted { get; private set; }
     public int IntervalOverride { get; set; }
     public int LastEvaluation => lastEvaluation;
     public long ProposedCount { get; private set; }
-    public long ExecutedCount => 0; // v0.4 deliberately has no executor for these actions.
+    public long ExecutedCount { get; private set; }
     public string LastReason { get; private set; } = "Sin decisiones";
     public string Status => !Enabled ? "Desactivado" : Faulted ? "Suspendido por error; desactiva y activa para recuperar"
-        : ObservationOnly ? "Observación: sin escrituras" : "Propuestas; ejecución de necesidades y seguridad no disponible";
+        : ObservationOnly ? "Observación: sin escrituras" : ActionsEnabled ? "Autonomía real experimental; acciones con validación" : "Propuestas; ejecución automática desactivada";
     public IReadOnlyCollection<DecisionCandidate> Journal => journal;
     public AutonomyProfile Profile
     {
@@ -34,7 +36,7 @@ internal sealed class AutonomousDecisionCoordinator
         }
     }
     public AutonomousDecisionCoordinator(params IAutonomyModule[] modules) =>
-        this.modules = modules.Length == 0 ? [new SafetyAutonomy(), new NeedsAutonomy(), new WorkAutonomy()] :
+        this.modules = modules.Length == 0 ? [new SafetyAutonomy(), new NeedsAutonomy(), new WorkAutonomy(), new HealthAutonomy(), new ApparelAutonomy()] :
             modules.OrderBy(m => m.Kind).ToArray();
 
     public bool Due(int tick) => Enabled && !Faulted && (lastEvaluation < 0 || tick < lastEvaluation ||
@@ -77,6 +79,12 @@ internal sealed class AutonomousDecisionCoordinator
                 };
                 candidates.Clear();
                 foreach (var module in modules) module.Propose(pawn, state, policy, candidates);
+                candidates.RemoveAll(c => ExecutionRules.Supports(c.Action) && (AllowedModules & ExecutionRules.ModuleFor(c.Action)) == 0 ||
+                    ActionsEnabled && c.Action == ProposedAction.ReviewWorkAllocation);
+                if (ActionsEnabled && (pawn.Threat || pawn.Fire))
+                    for (int i = 0; i < candidates.Count; i++)
+                        if (candidates[i].Action == ProposedAction.SeekSafety)
+                            candidates[i] = candidates[i] with { Priority = Math.Max(1050, candidates[i].Priority), Urgency = Urgency.Critical };
                 bool emergency = pawn.Threat || pawn.Fire || pawn.ImmediateDanger;
                 if (!emergency && emergencies.Remove(pawn.Id)) candidates.Add(new(pawn.Id, pawn.MapId, NeedKind.Safety, 0,
                     Urgency.Normal, "Emergencia finalizada según los observadores", ModuleKind.Safety, ProposedAction.EmergencyEnded,
@@ -119,6 +127,7 @@ internal sealed class AutonomousDecisionCoordinator
                             state = state with { LastAction = proposal.Action, LastPriority = proposal.Priority,
                                 LastUrgency = proposal.Urgency, LastDecisionTick = tick };
                             authorization = ObservationOnly ? Authorization.ObservationOnly :
+                                ActionsEnabled && ExecutionRules.Supports(proposal.Action) ? Authorization.AwaitingValidation :
                                 (proposal.Satisfied & proposal.Required) != proposal.Required ? Authorization.MissingConditions : Authorization.Unsupported;
                         }
                     }
@@ -140,6 +149,20 @@ internal sealed class AutonomousDecisionCoordinator
             decisions.Clear();
         }
         return decisions;
+    }
+    public void RecordOutcome(DecisionCandidate decision, Authorization authorization, string detail)
+    {
+        var outcome = decision with { Authorization = authorization, Reason = decision.Reason + "; " + detail };
+        if (authorization == Authorization.Executed)
+        {
+            ExecutedCount++;
+            if (memory.TryGetValue(decision.PawnId, out var state))
+                memory[decision.PawnId] = state with { LastAction = decision.Action, LastPriority = decision.Priority,
+                    LastUrgency = decision.Urgency, LastDecisionTick = lastEvaluation };
+        }
+        if (journal.Count == 64) journal.Dequeue();
+        journal.Enqueue(outcome);
+        LastReason = outcome.Reason + " [" + authorization + "]";
     }
     private static int Compare(DecisionCandidate left, DecisionCandidate right)
     {

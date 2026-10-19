@@ -1,21 +1,15 @@
-# Autonomous Colonists — RimWorld 1.7 — 0.4 experimental
+# Autonomous Colonists 0.5 experimental — RimWorld 1.7 / .NET 10
 
-Mod independiente con un director de propuestas y el gestor de prioridades de v0.3. El jugador decide los objetivos de la colonia; el gestor reparte cobertura y el director observa necesidades y señales de peligro. No cambia RimDroid, el APK, Waylith ni la IA de trabajos del juego.
+Mod independiente con Autonomous Director, perfiles Conservador/Equilibrado/Avanzado y acciones automáticas reales mediante los JobGiver, WorkGiver y JobTracker del juego. Equilibrado sigue predeterminado, con activación voluntaria por partida. Al actualizar desde v0.3/v0.4 no se habilitan acciones nuevas automáticamente.
 
-**Compila con .NET SDK 10 contra las tres DLL privadas proporcionadas. La ejecución dentro de RimWorld y Android sigue pendiente.** El ZIP generado contiene solo el mod y su documentación/licencia; no contiene bibliotecas del juego.
+Implementación actual: comer comida permitida, dormir en cama, atención médica/autocuidado autorizado, descanso médico, mejoras de ropa del optimizador nativo, rescate seguro, huida y apagar fuego propio. El gestor de trabajo de v0.3 conserva habilidades/pasiones, especialistas, suplentes, cobertura y bloqueos. Defensa armada, selección de armas y refugios estratégicos quedan pendientes; no hay opciones ficticias para habilitarlos.
 
-## Autonomous Director v0.4
+**Compilación verificada contra DLL reales; pruebas puras superadas. Los jobs nativos, partidas y Android todavía necesitan validación real.** Las bibliotecas privadas, sus fuentes de inspección y los archivos del juego no se distribuyen.
 
-- Activación voluntaria por partida, independiente del gestor de trabajos. **Equilibrado** predeterminado, **observación** predeterminada. Una partida v0.3 conserva su gestor y recibe el director apagado.
-- Conservador / Equilibrado / Avanzado cambian umbrales, estabilidad y frecuencia; mantienen las mismas restricciones manuales. Intervalos de perfil: 1250 / 750 / 250 ticks, configurables de 250 a 2500.
-- Observación real de hambre, descanso, salud resumida, trabajo actual, orden forzada, reclutamiento, peligro/incendio del mapa y colono ardiendo. Niveles normal, creciente, importante y crítico.
-- Resolución determinista de conflictos por actividad del colono, histéresis y conservación de la propuesta vigente ante mejoras marginales. Sin aprendizaje, servicios externos, Harmony ni dependencias nuevas.
-- **Solo propuestas** de alimentación, descanso y seguridad; cero ejecución de estas acciones incluso con observación desmarcada. No se presupone disponibilidad de comida, cama o refugio. Salud y ropa quedan reservadas para fases posteriores.
-- En observación activa, el director suspende **todas** las escrituras automáticas de prioridades, incluidas restauraciones y botones. Retiene el historial para reanudar/restaurar después. Sus diagnósticos y configuración sí se actualizan.
-- Órdenes forzadas y reclutamiento también bloquean asignaciones y restauraciones del gestor; las restauraciones se aplazan sin perder propiedad. Exclusiones compartidas entre ambos sistemas.
-- Estado mínimo por ID y mapa guardado con Scribe; observaciones, diario limitado a 64 entradas y contadores de sesión se reconstruyen. Se conserva intacta la identidad histórica `AutonomousColonists.AutonomyDirector` para v0.2.
-
-Lee [ARQUITECTURA_DIRECTOR.md](ARQUITECTURA_DIRECTOR.md), [PRUEBAS.md](PRUEBAS.md) y [RENDIMIENTO.md](RENDIMIENTO.md) para políticas, evidencia y límites. **La compilación pasa; guardar/cargar una partida real y Android siguen pendientes.**
+- [Funciones, arquitectura, permisos y límites exactos](AUTONOMIA_0.5.md)
+- [Pruebas ejecutadas y pendientes](PRUEBAS_0.5.md)
+- [Rendimiento y alcance de los benchmarks](RENDIMIENTO_0.5.md)
+- [Instalación en RimDroid](INSTALAR.md)
 
 ## Gestor de prioridades conservado desde v0.3
 
@@ -33,59 +27,36 @@ Lee [ARQUITECTURA_DIRECTOR.md](ARQUITECTURA_DIRECTOR.md), [PRUEBAS.md](PRUEBAS.m
 
 Es una implementación original inspirada en funciones de Work Manager. No incorpora su código ni sus recursos y no depende de Harmony, Work Manager o LordKuper.Common. Alimentación, ropa, descanso, horarios, tratamientos y `selfTend` mantienen el comportamiento del juego/jugador.
 
-## Instalación
+## Compilar y probar
 
-Lee [INSTALAR.md](INSTALAR.md). Extrae el ZIP de `dist/` y copia `AutonomousColonists/` a la carpeta Mods del juego. No se instala como APK. Utiliza primero una copia de tu partida y consulta [PRUEBAS.md](PRUEBAS.md).
-
-## Compilación y pruebas
-
-Requiere Python 3 y SDK .NET **10**. No necesitas el SDK Android ni reconstruir RimDroid.
+Python 3 y SDK .NET 10; no requiere Gradle, SDK Android ni recompilar RimDroid. Desde este directorio:
 
 ```sh
-# Pruebas sin archivos del juego:
 dotnet run --project Tests/AutonomousColonists.Tests.csproj -c Release -- --report TestResults/core-tests.json
 dotnet run --project Tests/Director/AutonomousColonists.Director.Tests.csproj -c Release -- --report TestResults/director-tests.json
+dotnet run --project Tests/Actions/AutonomousColonists.Actions.Tests.csproj -c Release -- --report TestResults/action-tests.json
 python3 -m unittest discover -s tools -p 'test_*.py' -v
-
-# Build real, pruebas, inspección de metadatos y ZIP instalable:
-python3 tools/build_from_zip.py /ruta/privada/mods.zip
-
-# Alternativa: referencias privadas ya instaladas, sin copiarlas:
 python3 tools/build_from_zip.py --managed-dir /ruta/privada/RimWorld
+# O, con el ZIP privado proporcionado legalmente:
+python3 tools/build_from_zip.py /ruta/privada/mods.zip
 ```
 
-Las referencias exactas son `Assembly-CSharp.dll`, `UnityStubs.dll` y `Waylith.dll` de la misma instalación 1.7. El ZIP privado se extrae a un directorio temporal que se elimina al terminar. `Private=false` impide que MSBuild copie las referencias al resultado. Los artefactos se generan mediante una lista cerrada y sus metadatos se inspeccionan sin ejecutar código del juego.
+Referencias: Assembly-CSharp.dll, UnityStubs.dll y Waylith.dll de la misma instalación 1.7. Private=false; nunca se copian al resultado. Los tests usan solo el núcleo original del mod, sin stubs de Verse ni dependencias nuevas.
 
-Salidas: `dist/AutonomousColonists-RimWorld-1.7.zip`, `SHA256SUMS`, `build-report.json`, `api-audit.json`, `core-tests.json`, `director-tests.json`, `packaging-tests.txt`. El informe registra commit, estado del árbol y hashes de las fuentes usadas. No publiques `mods.zip`, referencias privadas ni carpetas de compilación completas.
+El build ejecuta las tres suites C#, Python, compila con advertencias como errores, inspecciona PE/.NET y referencias a métodos reales, y genera el ZIP por lista cerrada, SHA256SUMS e informes con commit/árbol/hashes de fuentes. El ZIP contiene la DLL propia, About, licencia, instalación, documentación v0.5 y cinco informes de verificación. Los benchmarks sintéticos usan dobles de prueba en la frontera; no simulan que se haya ejecutado el juego.
 
-## GitHub Actions
-
-El workflow existente **Autonomous Colonists mod** se conserva sin cambios. El nuevo **Autonomous Director core** ejecuta las pruebas adicionales y publica su informe sin referencias privadas. No se modifican ni invocan workflows del APK. No se configura runner privado en esta fase.
-
-La generación automática del ZIP necesita referencias privadas. No caben razonablemente en secretos de GitHub, y este proyecto no las publica ni las descarga de terceros:
-
-1. Prepara un runner privado de Linux x64, dedicado a código de confianza, con etiquetas `self-hosted`, `linux`, `x64`, `rimworld17-private`.
-2. Instala las tres DLL fuera del checkout y de sus artefactos. Define `RIMWORLD_MANAGED_DIR` en el entorno del **servicio del runner**, apuntando a ese directorio privado.
-3. En variables del repositorio, define `AUTONOMOUS_PRIVATE_BUILD=true`. Hasta entonces, el job `package` queda omitido; las pruebas públicas sí pueden ejecutarse.
-4. Un push a `feat/autonomous-colonists-1.7` que afecte al mod/workflow, o una ejecución manual seleccionando esa rama, prueba, compila e incorpora únicamente ZIP, suma SHA-256 e informes permitidos al artefacto `AutonomousColonists-RimWorld-1.7`.
-5. Descarga ese artefacto desde la ejecución de Actions y extrae el ZIP del mod. Las pull requests ejecutan solo pruebas en un runner público; nunca código de una PR en el runner con archivos privados.
-
-La [primera ejecución remota](https://github.com/Borjabyxx/RimDroid/actions/runs/39239475222) del commit `6a1d2a4` terminó correctamente: job `tests` superado e informe publicado; job `package` omitido por su condición de activación privada. La compilación real del mod se ha ejecutado localmente; no se ha configurado desde aquí el runner privado ni se ha observado un ZIP generado remotamente. El YAML no puede crear las referencias privadas en los runners públicos.
-
-## Límites conocidos
-
-La cobertura es un objetivo configurable, no un cálculo de encargos, existencias, estaciones o stock de comida. No crea trabajo que el jugador no haya solicitado. Un cambio al mismo valor automático, o varios cambios que regresan a ese valor entre observaciones, no es detectable con sondeo; para control completo, excluye al colono. Los gestores no reconocidos pueden interferir: exclúyelos/desactívalos para probar. No hay integración especial con Work Tab u otros gestores.
-
-El componente de mapa v0.2 se conserva para importar sus valores/bloqueos/exclusiones a la nueva estructura, sin escrituras durante la deserialización. La migración y `Verse.Scribe` requieren una prueba real de guardar/cargar; las pruebas puras solo comprueban la representación de valores del registro. El mod no puede deducir el valor previo de `selfTend` si alguna compilación antigua lo modificó.
-
-Código original bajo MIT: [LICENCIA.txt](LICENCIA.txt). Consulta [AUDITORIA.md](AUDITORIA.md) para los defectos encontrados y el alcance real de la validación.
-
-## Ensayo adicional de Scribe
+Ensayo adicional de Scribe real:
 
 ```sh
 python3 tools/scribe_smoke.py /ruta/privada/RimWorld --report dist/scribe-smoke.json
 ```
 
-Compila y ejecuta un programa aislado contra las bibliotecas reales, con IDs sintéticos y sin colonos/partida. Sus copias de las referencias viven en un directorio temporal que se elimina al terminar. No se ejecuta en CI público ni es requisito artificial del empaquetado.
+La escritura XML se comprueba; la lectura está bloqueada aquí por Steamworks/Brutal.Core.Logging ausentes. No cuenta como prueba superada de guardar/cargar.
 
-En este entorno se escribió el XML, pero el ciclo de lectura quedó **bloqueado**: faltan las dependencias originales `com.rlabrecque.steamworks.net.dll` (identidad 0.0.0.0, al inspeccionar tipos) y `Brutal.Core.Logging.dll` (2026.9.0.0, al registrar el error). No se crearon sustitutos. Estas bibliotecas no hacen falta para compilar el mod; sí para continuar este ensayo de runtime fuera del juego. Puede que, después de resolverlas, se requieran otras dependencias del runtime completo; no se da esa lista por cerrada. Los resultados parciales no prueban guardar/cargar una partida real.
+## Actions y distribución
+
+Se conservan sin cambios los workflows existentes. El nuevo autonomous-actions.yml prueba la frontera de ejecución y publica solo su JSON. Los tests públicos no necesitan DLL privadas. El workflow privado de compilación ya existente sigue desactivado por su condición; no se configura un runner privado en esta fase.
+
+La distribución experimental se publica con una etiqueta nueva y el ZIP ya compilado/verificado en el entorno, sin recompilarlo en un runner público ni subir referencias propietarias. Los workflows de transferencia fijan hashes/commit y verifican los bytes descargados antes de publicar. No sobrescribir v0.3 ni v0.4.
+
+Los informes históricos AUDITORIA.md, ARQUITECTURA_DIRECTOR.md, PRUEBAS.md y RENDIMIENTO.md describen v0.3/v0.4; consultar los documentos v0.5 enlazados arriba para esta versión. Código MIT, LICENCIA.txt.

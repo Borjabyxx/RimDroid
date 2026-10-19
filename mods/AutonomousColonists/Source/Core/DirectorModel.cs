@@ -5,18 +5,24 @@ internal enum AutonomyProfile { Balanced = 0, Conservative = 1, Advanced = 2 }
 internal enum NeedKind { None, Food, Rest, Safety, Work, Health, Apparel }
 internal enum Urgency { Normal, Growing, Important, Critical }
 internal enum ModuleKind { Needs, Safety, Work, Health, Apparel }
-internal enum ProposedAction { None, Eat, Rest, SeekSafety, EmergencyEnded, ReviewWorkAllocation }
+internal enum ProposedAction { None, Eat, Rest, SeekSafety, EmergencyEnded, ReviewWorkAllocation, SelfTend, TendPatient, MedicalRest, OptimizeApparel, Rescue }
 internal enum DecisionResource { Activity }
-internal enum Authorization { Proposed, ManualOrder, Unavailable, Excluded, Conflict, Stability, ObservationOnly, Unsupported, MissingConditions }
+internal enum Authorization { Proposed, ManualOrder, Unavailable, Excluded, Conflict, Stability, ObservationOnly, Unsupported, MissingConditions, AwaitingValidation, Executed, Rejected, Cooldown, Budget }
 [Flags]
 internal enum DecisionConditions { None = 0, Available = 1, NoManualOrder = 2, AlternativeKnown = 4 }
+[Flags]
+internal enum ActionModules { None = 0, Food = 1, Rest = 2, Health = 4, Apparel = 8, Safety = 16, All = 31 }
 
 internal readonly record struct PawnObservation(string Id, int MapId, float? Food, float? Rest,
     float? Health, bool Drafted = false, bool ManualOrder = false, bool Unavailable = false,
     bool Excluded = false, string CurrentJob = "", int InterruptionCost = 0,
     bool Threat = false, bool Fire = false, bool ImmediateDanger = false,
     bool NonCombatant = false, bool DefenseAuthorized = false,
-    bool? FoodAvailable = null, bool? RestAvailable = null);
+    bool? FoodAvailable = null, bool? RestAvailable = null,
+    bool NeedsTend = false, bool UrgentCare = false, bool CanDoctor = false,
+    bool SelfTendAllowed = false, bool MedicalRestNeeded = false,
+    bool PatientsNeedCare = false, bool UrgentPatient = false,
+    bool ApparelReviewDue = false, bool RescueNeeded = false, bool CanRescue = false);
 
 internal readonly record struct DecisionCandidate(string PawnId, int MapId, NeedKind Need,
     int Priority, Urgency Urgency, string Reason, ModuleKind Module, ProposedAction Action,

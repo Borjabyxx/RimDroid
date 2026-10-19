@@ -37,6 +37,12 @@ try
     coordinator.SetEnabled(true);
     coordinator.SetObservation(false);
     coordinator.SetInterval(1000);
+    coordinator.SetActions(true);
+    object execution = Field<object>(coordinator, "execution");
+    Type executionType = typeof(AutonomousCoordinatorComponent).Assembly.GetType("AutonomousColonists.Core.ExecutionMemory", true)!;
+    var executions = Array.CreateInstance(executionType, 1);
+    executions.SetValue(Activator.CreateInstance(executionType, "Pawn1", 1, 450), 0);
+    execution.GetType().GetMethod("ImportMemory")!.Invoke(execution, new object[] { executions });
     object core = Field<object>(coordinator, "core");
     Assembly mod = typeof(AutonomousCoordinatorComponent).Assembly;
     Type actorType = mod.GetType("AutonomousColonists.Core.ActorMemory", true)!;
@@ -51,7 +57,9 @@ try
     Scribe_Deep.Look(ref coordinator, "coordinator", new object[] { null! });
     Scribe.saver.FinalizeSaving();
     var xml = XDocument.Load(args[1]);
-    if (!xml.Descendants("directorMemory").Any() || !xml.Descendants("directorEnabled").Any(e => e.Value == "True" || e.Value == "true"))
+    if (!xml.Descendants("directorMemory").Any() || !xml.Descendants("directorExecutionMemory").Any() ||
+        !xml.Descendants("directorActionsEnabled").Any(e => e.Value == "True" || e.Value == "true") ||
+        !xml.Descendants("directorEnabled").Any(e => e.Value == "True" || e.Value == "true"))
         throw new InvalidOperationException("Director fields absent from saved XML");
     saved = true;
     AutonomyGameComponent loaded = null!;
@@ -68,11 +76,14 @@ try
         !Field<List<string>>(loaded, "exclusions").Contains("Pawn2") ||
         !Field<HashSet<string>>(loaded, "recovering").Contains("Pawn1"))
         throw new InvalidOperationException("Verse.Scribe round-trip state mismatch");
-    if (loadedCoordinator == null || !loadedCoordinator.Enabled || loadedCoordinator.ObservationOnly ||
+    if (loadedCoordinator == null || !loadedCoordinator.Enabled || loadedCoordinator.ObservationOnly || !loadedCoordinator.ActionsEnabled ||
         loadedCoordinator.IntervalOverride != 1000 ||
         ((Array)Field<object>(loadedCoordinator, "core").GetType().GetMethod("ExportMemory")!
             .Invoke(Field<object>(loadedCoordinator, "core"), null)!).Length != 1)
         throw new InvalidOperationException("Director Verse.Scribe round-trip state mismatch");
+    if (((Array)Field<object>(loadedCoordinator, "execution").GetType().GetMethod("ExportMemory")!
+        .Invoke(Field<object>(loadedCoordinator, "execution"), null)!).Length != 1)
+        throw new InvalidOperationException("Execution cooldown Verse.Scribe round-trip state mismatch");
     passed = true;
 }
 catch (Exception ex)
@@ -83,7 +94,7 @@ catch (Exception ex)
 File.WriteAllText(args[2], JsonSerializer.Serialize(new
 {
     passed, xmlSaved = saved, missingAssemblies = missing.Keys.OrderBy(s => s, StringComparer.Ordinal), error = errorMessage,
-    scope = "Real Verse.Scribe for v0.3 work ledger and v0.4 coordinator/memory with synthetic IDs and no pawn references; not a game save or Android test",
+    scope = "Real Verse.Scribe for work ledger, director and v0.5 execution permission/cooldown with synthetic IDs; not a game save or Android test",
     gameExecuted = false, androidExecuted = false
 }, new JsonSerializerOptions { WriteIndented = true }));
 Console.WriteLine(passed ? "PASS isolated Verse.Scribe round trip" : "BLOCKED/FAILED isolated Verse.Scribe: " + errorMessage);
