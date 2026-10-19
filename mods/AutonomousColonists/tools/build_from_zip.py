@@ -87,7 +87,7 @@ def build(directory: Path, output: Path, verify_only: bool) -> None:
     if not sdk.startswith("10."):
         raise RuntimeError(f"Se necesita .NET 10; encontrado {sdk}")
     output.mkdir(parents=True, exist_ok=True)
-    for name in ("AutonomousColonists-RimWorld-1.7.zip", "SHA256SUMS", "build-report.json", "api-audit.json", "core-tests.json", "packaging-tests.txt"):
+    for name in ("AutonomousColonists-RimWorld-1.7.zip", "SHA256SUMS", "build-report.json", "api-audit.json", "core-tests.json", "director-tests.json", "packaging-tests.txt"):
         (output / name).unlink(missing_ok=True)
     env = os.environ.copy()
     env["RIMWORLD_MANAGED_DIR"] = str(directory)
@@ -98,6 +98,8 @@ def build(directory: Path, output: Path, verify_only: bool) -> None:
     packaging.check_returncode()
     subprocess.run(["dotnet", "run", "--project", str(ROOT / "Tests/AutonomousColonists.Tests.csproj"),
                     "-c", "Release", "--", "--report", str(output / "core-tests.json")], check=True, cwd=ROOT)
+    subprocess.run(["dotnet", "run", "--project", str(ROOT / "Tests/Director/AutonomousColonists.Director.Tests.csproj"),
+                    "-c", "Release", "--", "--report", str(output / "director-tests.json")], check=True, cwd=ROOT)
     subprocess.run(["dotnet", "build", str(ROOT / "Source/AutonomousColonists.csproj"), "-c", "Release",
                     "--nologo", "-p:ContinuousIntegrationBuild=true", "-p:UseSharedCompilation=false"],
                    check=True, cwd=ROOT, env=env)
@@ -116,7 +118,7 @@ def build(directory: Path, output: Path, verify_only: bool) -> None:
                     if path.suffix in (".cs", ".csproj", ".py") and not {"bin", "obj", "__pycache__"}.intersection(path.parts)]
     source_files += [ROOT / "About/About.xml", ROOT / "INSTALAR.md", ROOT / "LICENCIA.txt"]
     (output / "build-report.json").write_text(json.dumps({
-        "version": "0.3.0-experimental", "sdk": sdk, "references": references,
+        "version": "0.4.0-experimental", "sdk": sdk, "references": references,
         "zip": destination.name, "sha256": sha, "members": sorted(MEMBERS),
         "sourceCommit": commit, "sourceTreeDirty": dirty,
         "sourceFiles": {str(p.relative_to(ROOT)): hashlib.sha256(p.read_bytes()).hexdigest() for p in sorted(source_files)},

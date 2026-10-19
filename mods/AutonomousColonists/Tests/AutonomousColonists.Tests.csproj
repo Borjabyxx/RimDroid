@@ -7,5 +7,8 @@
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
     <LangVersion>14.0</LangVersion>
   </PropertyGroup>
-  <ItemGroup><Compile Include="../Source/Core/*.cs" Link="Core/%(Filename)%(Extension)" /></ItemGroup>
+  <ItemGroup>
+    <Compile Remove="Director/**/*.cs" />
+    <Compile Include="../Source/Core/*.cs" Link="Core/%(Filename)%(Extension)" />
+  </ItemGroup>
 </Project>

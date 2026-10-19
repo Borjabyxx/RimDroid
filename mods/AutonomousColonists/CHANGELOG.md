@@ -1,5 +1,18 @@
 # Cambios
 
+## 0.4.0-experimental — 19/10/2026
+
+- AutonomousDecisionCoordinator puro y AutonomousCoordinatorComponent por partida; se conserva intacto el adaptador histórico v0.2.
+- Director voluntario y observación por defecto; Equilibrado predeterminado, con perfiles Conservador y Avanzado.
+- Observación real de comida, descanso y contexto de salud/trabajo; SafetyAutonomy representa peligro, incendio, refugio propuesto, permisos defensivos y fin de emergencia.
+- Candidatos tipados, orden determinista, arbitraje único por actividad, histéresis, estabilidad e incumbencia ante alternativas marginales.
+- Ningún ejecutor nuevo de trabajos/necesidades/seguridad; no hay opción que habilite acciones inseguras. Health/Apparel reservados para fases posteriores.
+- Puerta común de permisos del gestor v0.3: observación, errores del director, órdenes forzadas y reclutamiento impiden escrituras y aplazan restauraciones conservando su historial.
+- Persistencia mínima por ID/mapa; cachés invalidadas por traslados, exclusiones, salidas y cambios de perfil. Diagnósticos de sesión limitados.
+- Interfaz desplazable con botones de 40 px, perfiles, intervalo, estado, propuestas, motivo, tiempos/memoria y exclusiones compartidas.
+- 40 pruebas C# originales intactas, 50 adicionales, 10 Python y escenarios aleatorios; benchmarks 5/20/50. Nuevo workflow público separado; workflows existentes intactos.
+- Build con referencias privadas reales .NET 10, cero advertencias. Ensayo Scribe escribe XML pero lectura bloqueada por dependencias originales ausentes; juego y Android siguen pendientes.
+
 ## 0.3.0-experimental — 19/10/2026
 
 - Compilación real contra RimWorld 1.7/.NET 10 con advertencias tratadas como errores.

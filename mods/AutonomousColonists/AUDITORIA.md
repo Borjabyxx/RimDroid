@@ -1,5 +1,7 @@
 # Auditoría de Autonomous Colonists v0.2 → 0.3 experimental
 
+Este informe conserva la auditoría histórica de v0.3. Para v0.4, consultar [ARQUITECTURA_DIRECTOR.md](ARQUITECTURA_DIRECTOR.md), [PRUEBAS.md](PRUEBAS.md), [RENDIMIENTO.md](RENDIMIENTO.md) y CHANGELOG.md. Los resultados de build/SHA de cada versión proceden de sus propios informes, no de los de v0.3.
+
 Fecha: 19 de octubre de 2026. Estado: compilación y pruebas locales verificadas; ejecución real en RimWorld/Android pendiente.
 
 ## Alcance y procedencia

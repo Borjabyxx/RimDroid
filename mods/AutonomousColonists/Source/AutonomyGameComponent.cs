@@ -133,6 +133,15 @@ public sealed class AutonomyGameComponent : GameComponent
         try
         {
             ImportOldMaps();
+            // A single game-wide permission boundary also covers restoration and UI buttons.
+            // Retain ownership while observing: leaving observation can resume or restore safely.
+            if (Current.Game.GetComponent<AutonomousCoordinatorComponent>()?.BlocksWorkWrites == true)
+            {
+                if (Find.PlaySettings.useWorkPriorities) ObserveAll();
+                Status = "Suspendido: Autonomous Director en observación o con error";
+                forceRefresh = true;
+                return;
+            }
             bool conflict = WorkManagerConflict();
             if (conflict && lastConflict != true)
                 Log.Warning("[Autonomous Colonists] Work Manager activo: automatización suspendida.");
@@ -179,7 +188,7 @@ public sealed class AutonomyGameComponent : GameComponent
                     Ledger.ForgetPawn(pawn.ThingID);
                     exclusions.Remove(pawn.ThingID);
                 }
-                tracked.Remove(pawn);
+                if (!Ledger.HasOwnership(pawn.ThingID)) tracked.Remove(pawn);
                 recovering.Remove(pawn.ThingID);
                 forceRefresh = true;
             }
@@ -189,7 +198,7 @@ public sealed class AutonomyGameComponent : GameComponent
                 if (IsExcluded(pawn)) continue;
                 if (trackedIds.Add(pawn.ThingID)) { tracked.Add(pawn); forceRefresh = true; }
                 // Temporary stress/unavailability triggers coverage on both loss and recovery.
-                bool unavailable = Availability.Paused(pawn.Downed || pawn.InMentalState || pawn.Drafted,
+                bool unavailable = Availability.Paused(pawn.Downed || pawn.InMentalState || pawn.Drafted || HasManualOrder(pawn),
                     pawn.needs?.mood?.CurLevelPercentage ?? 1f, pawn.needs?.rest?.CurLevelPercentage ?? 1f,
                     recovering.Contains(pawn.ThingID));
                 if (unavailable ? recovering.Add(pawn.ThingID) : recovering.Remove(pawn.ThingID)) forceRefresh = true;
@@ -266,7 +275,7 @@ public sealed class AutonomyGameComponent : GameComponent
             WorkTypeDef work = byWork[assignment.Work];
             string key = PriorityLedger.Key(assignment.Pawn, assignment.Work);
             int current = pawn.workSettings.GetPriority(work);
-            if (pawn.WorkTypeIsDisabled(work) || !Ledger.CanManage(key, current)) continue;
+            if (!CanWrite(pawn) || pawn.WorkTypeIsDisabled(work) || !Ledger.CanManage(key, current)) continue;
             if (current != assignment.Priority)
             {
                 pawn.workSettings.SetPriority(work, assignment.Priority);
@@ -283,6 +292,7 @@ public sealed class AutonomyGameComponent : GameComponent
         string key = PriorityLedger.Key(pawn.ThingID, work.defName);
         if (!Ledger.Applied.ContainsKey(key)) return;
         if (pawn.workSettings == null || pawn.Destroyed || !pawn.workSettings.Initialized) { Ledger.Release(key); return; }
+        if (!CanWrite(pawn)) return; // Defer restoration; do not discard the pending ownership.
         int current = pawn.workSettings.GetPriority(work);
         int? restore = Ledger.RestoreValue(key, current);
         if (restore.HasValue && !pawn.WorkTypeIsDisabled(work) && current != restore.Value)
@@ -302,7 +312,15 @@ public sealed class AutonomyGameComponent : GameComponent
     {
         if (!Find.PlaySettings.useWorkPriorities) return;
         foreach (Pawn pawn in tracked) RestorePawn(pawn);
-        tracked.Clear();
+        tracked.RemoveAll(p => !Ledger.HasOwnership(p.ThingID));
         recovering.Clear();
+    }
+
+    private static bool HasManualOrder(Pawn pawn) => pawn.CurJob?.playerForced == true || pawn.CurJob?.playerInterruptedForced == true;
+    private static bool CanWrite(Pawn pawn)
+    {
+        var coordinator = Current.Game.GetComponent<AutonomousCoordinatorComponent>();
+        return WorkAuthorization.CanWrite(coordinator?.Enabled == true, coordinator?.ObservationOnly == true,
+            coordinator?.BlocksWorkWrites == true, HasManualOrder(pawn), pawn.Drafted);
     }
 }

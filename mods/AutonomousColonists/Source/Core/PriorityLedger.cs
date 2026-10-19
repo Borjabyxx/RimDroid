@@ -19,6 +19,8 @@ internal sealed class PriorityLedger
 
     public static string Key(string pawn, string work) => pawn + "|" + work;
 
+    public bool HasOwnership(string pawn) => Applied.Keys.Any(k => k.StartsWith(pawn + "|", StringComparison.Ordinal));
+
     public bool Observe(string key, int current)
     {
         if (Applied.TryGetValue(key, out int last) ? current != last : Seen.TryGetValue(key, out int observed) && current != observed)

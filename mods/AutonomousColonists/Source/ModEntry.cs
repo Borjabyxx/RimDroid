@@ -27,6 +27,7 @@ public sealed class AutonomousSettings : ModSettings
 public sealed class AutonomousColonistsMod : Mod
 {
     internal static AutonomousSettings? Settings;
+    private static readonly AutonomyProfile[] Profiles = [AutonomyProfile.Conservative, AutonomyProfile.Balanced, AutonomyProfile.Advanced];
     private Vector2 scroll;
     private bool showCoverage;
     private bool confirmLocks;
@@ -42,6 +43,7 @@ public sealed class AutonomousColonistsMod : Mod
         if (settings == null) return;
         Map? currentMap = Find.CurrentMap;
         AutonomyGameComponent? director = Current.Game?.GetComponent<AutonomyGameComponent>();
+        AutonomousCoordinatorComponent? coordinator = Current.Game?.GetComponent<AutonomousCoordinatorComponent>();
         var colonists = currentMap?.mapPawns.FreeColonistsSpawned.OrderBy(p => p.LabelShort).ToList();
         Rect contents = new(0f, 0f, Math.Max(100f, rect.width - 22f), Math.Max(rect.height, contentHeight));
         bool changed = false;
@@ -50,8 +52,40 @@ public sealed class AutonomousColonistsMod : Mod
         listing.Begin(contents);
         try
         {
-            listing.Label("Autonomous Colonists 0.3 experimental. Alimentación, descanso, ropa y medicina: comportamiento del juego.");
+            listing.Label("Autonomous Colonists 0.4 experimental. Alimentación, descanso y seguridad: observación y propuestas.");
             listing.Label("Respeta cambios manuales observables y trabajos desactivados (0). Activa prioridades numéricas en Trabajo.");
+            listing.GapLine();
+            listing.Label("Autonomous Director — configuración de esta partida");
+            if (coordinator != null)
+            {
+                bool enabled = coordinator.Enabled;
+                listing.CheckboxLabeled("Activar Autonomous Director (voluntario)", ref enabled, height: 40f);
+                if (enabled != coordinator.Enabled) coordinator.SetEnabled(enabled);
+                foreach (AutonomyProfile mode in Profiles)
+                {
+                    string label = mode == AutonomyProfile.Conservative ? "Conservador" : mode == AutonomyProfile.Balanced ? "Equilibrado" : "Avanzado";
+                    if (Widgets.ButtonText(listing.GetRect(40f), (coordinator.Profile == mode ? "● " : "○ ") + label)) coordinator.SetProfile(mode);
+                }
+                bool observe = coordinator.ObservationOnly;
+                listing.CheckboxLabeled("Modo observación (sin escrituras)", ref observe, height: 40f);
+                if (observe != coordinator.ObservationOnly) coordinator.SetObservation(observe);
+                listing.Label("La observación activa suspende también cambios y restauraciones de prioridades.");
+                listing.Label("Sin observación, el gestor de trabajos conserva su activación independiente. Las nuevas acciones siguen siendo propuestas.");
+                listing.Label("Ejecución experimental de alimentación, descanso y seguridad: no disponible en v0.4.");
+                listing.Label(coordinator.IntervalOverride == 0 ? "Intervalo: automático según perfil" : $"Intervalo: {coordinator.IntervalOverride} ticks");
+                if (Widgets.ButtonText(listing.GetRect(40f), "Usar intervalo del perfil")) coordinator.SetInterval(0);
+                int cadence = coordinator.IntervalOverride == 0 ? DirectorPolicy.For(coordinator.Profile).Interval : coordinator.IntervalOverride;
+                if (Widgets.ButtonText(listing.GetRect(40f), "Reducir intervalo en 250 ticks")) coordinator.SetInterval(Math.Max(250, cadence - 250));
+                if (Widgets.ButtonText(listing.GetRect(40f), "Aumentar intervalo en 250 ticks")) coordinator.SetInterval(Math.Min(2500, cadence + 250));
+                listing.Label(coordinator.Status);
+                listing.Label($"Última evaluación: {(coordinator.LastEvaluation < 0 ? "pendiente" : coordinator.LastEvaluation.ToString())} ticks. {coordinator.LastMilliseconds:F2} ms; {coordinator.LastAllocatedBytes} bytes asignados.");
+                listing.Label($"Propuestas en esta sesión: {coordinator.ProposedCount}. Ejecutadas: {coordinator.ExecutedCount}.");
+                listing.Label("Último motivo: " + coordinator.LastReason);
+                if (Widgets.ButtonText(listing.GetRect(40f), "Evaluar propuestas ahora")) coordinator.EvaluateNow();
+            }
+            else listing.Label("Abre una partida. Director apagado y perfil Equilibrado por defecto.");
+            listing.GapLine();
+            listing.Label("Gestor de prioridades v0.3 — permisos independientes");
             if (AutonomyGameComponent.WorkManagerConflict()) listing.Label("Work Manager activo: gestor suspendido.");
             if (director != null)
             {
@@ -99,7 +133,7 @@ public sealed class AutonomousColonistsMod : Mod
                 foreach (Pawn pawn in colonists)
                 {
                     bool excluded = director.IsExcluded(pawn), next = excluded;
-                    listing.CheckboxLabeled("Excluir: " + pawn.LabelShort, ref next);
+                    listing.CheckboxLabeled("Excluir de ambos sistemas: " + pawn.LabelShort, ref next, height: 40f);
                     if (next != excluded) director.SetExcluded(pawn, next);
                 }
             }

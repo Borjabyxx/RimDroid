@@ -1,4 +1,36 @@
-# Validación — 0.3 experimental
+# Validación — 0.4 experimental
+
+## Resultado v0.4 (19/10/2026)
+
+- **40/40 C# originales** de v0.3, con `Tests/Program.cs` intacto.
+- **50/50 C# adicionales** del director, compilados con advertencias como errores. Incluyen perfiles/default voluntario, necesidades/umbrales, orden manual y reclutamiento, conflictos, críticas, histéresis, mejoras marginales, exclusiones, traslados/salidas, cambios de perfil, ticks atrasados, estado de valores, errores/recuperación, director apagado, permisos de escritura y observación sin ejecución.
+- 400 escenarios aleatorios reproducibles (0–50 colonos, tres perfiles) verifican determinismo por permutación, veto manual, exclusión, disponibilidad, un ganador por recurso y cero ejecución. Escenario de 200 evaluaciones con ruido verifica estabilidad; diario acotado y ruta de tick no vencido sin asignaciones.
+- **10/10 Python originales** sin cambios: entrada privada y distribución.
+- Build real Release contra `Assembly-CSharp` 1.7.9786.4087, `UnityStubs` y `Waylith` proporcionados: **0 errores y 0 advertencias**, ILOnly, .NET 10. Sin dependencias nuevas.
+- Benchmark puro del director 5/20/50 y benchmark original de trabajos conservado; [RENDIMIENTO.md](RENDIMIENTO.md). JSON separados con alcances explícitos.
+- XML del gestor y del director con memoria sintética escrito mediante Scribe real. **Lectura bloqueada**, no superada: faltan `com.rlabrecque.steamworks.net.dll` 0.0.0.0 y `Brutal.Core.Logging.dll` 2026.9.0.0. Podrían faltar otras dependencias después. No se usan stubs; `scribe-smoke.json` informa `passed=false`.
+- ZIP cerrado con cuatro archivos; solo DLL propia. SHA-256 e identidad de DLL en informes de build. Ninguna referencia privada distribuida.
+
+Las pruebas de estado son del **modelo de valores JSON**, no una sustitución de Verse.Scribe. Las pruebas de permisos usan el núcleo compartido con las rutas de escritura; no ejecutan `Pawn_WorkSettings` ni una partida. La compilación comprueba firmas del adaptador real, pero no demuestra su conducta en el juego.
+
+### Matriz de integración pendiente
+
+| Escenario real | Estado |
+| --- | --- |
+| Cargar v0.3 con trabajos activos; director nuevo apagado y Equilibrado | Pendiente en juego |
+| Importar guardado v0.2 conservando identidad histórica/bloqueos | Pendiente en juego |
+| Guardar/cargar director, perfil, exclusiones, histéresis y suspensión | Bloqueado en ensayo aislado; pendiente en juego |
+| Observación con gestor previamente activo: cero escrituras/restauraciones | Permiso probado en núcleo; pendiente con Verse |
+| Orden forzada/reclutado con restauración pendiente y posterior liberación | Ledger/permiso probado; pendiente con Verse |
+| Traslado de mapa, caravana, exclusión/reinclusión y carga de mapas | Modelo probado; pendiente con Verse |
+| UI táctil, scroll, cambio de perfil, necesidades reales y alertas | Compila; pendiente en juego/Android |
+| Fallo real, suspensión y desactivar/reactivar | Núcleo probado; pendiente con Verse |
+
+Para empezar en Android, seguir INSTALAR.md y añadir a la lista inferior: activar solo director en observación, comprobar tabla intacta durante varios días, registrar hambre/descanso reales y motivos; probar los tres perfiles; cambiar mapa/excluir/guardar/cargar. Después probar el gestor por separado. Las propuestas no deben cancelar jobs ni cambiar horarios/políticas/zonas. El contador ejecutadas del nuevo director siempre debe ser cero.
+
+El nuevo workflow `autonomous-director.yml` ejecuta la suite adicional y publica solo su JSON. Los workflows existentes no se modifican. Las ejecuciones remotas v0.4 se identifican en la entrega final; no se atribuyen los runs históricos inferiores al código nuevo.
+
+## Evidencia y lista histórica conservadas de v0.3
 
 ## Ejecutado en el entorno de compilación
 

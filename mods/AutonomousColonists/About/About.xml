@@ -3,9 +3,9 @@
   <name>Autonomous Colonists (Experimental)</name>
   <author>Community prototype</author>
   <packageId>autonomyinitiative.autonomouscolonists</packageId>
-  <modVersion>0.3.0-experimental</modVersion>
+  <modVersion>0.4.0-experimental</modVersion>
   <supportedVersions>
     <li>1.7</li>
   </supportedVersions>
-  <description>Independent experimental work-priority manager for RimWorld 1.7 (.NET 10). Opt-in automatic coverage based on skills, passions and available capacity, with stable specialist assignments, backups, manual-edit protection, per-pawn exclusions and conditional restoration. Never enables priority-zero work or changes forced jobs, medical settings, food, rest, apparel or schedules. Pauses when Work Manager is active. Built against user-provided 1.7 libraries; actual game and Android validation pending. Read INSTALAR.md before testing.</description>
+  <description>Autonomous Director v0.4 experimental for RimWorld 1.7 (.NET 10). Opt-in, Balanced profile by default. Deterministic food, rest and safety proposals only; no new automatic job execution. Observation mode suspends priority writes. Preserves the independent v0.3 work manager, specialist coverage, manual locks, exclusions and conditional restoration. No changes to schedules, food policies, medical settings, apparel, drafting or zones. External Work Manager suspends priority automation. Compiled against private 1.7 libraries; actual game and Android validation pending. Read INSTALAR.md before testing.</description>
 </ModMetaData>

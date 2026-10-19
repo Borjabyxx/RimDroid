@@ -1,10 +1,23 @@
-# Autonomous Colonists — RimWorld 1.7 — 0.3 experimental
+# Autonomous Colonists — RimWorld 1.7 — 0.4 experimental
 
-Mod independiente para gestionar prioridades de trabajo. El jugador decide los objetivos de la colonia; el mod reparte cobertura entre los colonos disponibles. No cambia RimDroid, el APK, Waylith, las necesidades ni la IA de trabajos del juego.
+Mod independiente con un director de propuestas y el gestor de prioridades de v0.3. El jugador decide los objetivos de la colonia; el gestor reparte cobertura y el director observa necesidades y señales de peligro. No cambia RimDroid, el APK, Waylith ni la IA de trabajos del juego.
 
 **Compila con .NET SDK 10 contra las tres DLL privadas proporcionadas. La ejecución dentro de RimWorld y Android sigue pendiente.** El ZIP generado contiene solo el mod y su documentación/licencia; no contiene bibliotecas del juego.
 
-## Comportamiento
+## Autonomous Director v0.4
+
+- Activación voluntaria por partida, independiente del gestor de trabajos. **Equilibrado** predeterminado, **observación** predeterminada. Una partida v0.3 conserva su gestor y recibe el director apagado.
+- Conservador / Equilibrado / Avanzado cambian umbrales, estabilidad y frecuencia; mantienen las mismas restricciones manuales. Intervalos de perfil: 1250 / 750 / 250 ticks, configurables de 250 a 2500.
+- Observación real de hambre, descanso, salud resumida, trabajo actual, orden forzada, reclutamiento, peligro/incendio del mapa y colono ardiendo. Niveles normal, creciente, importante y crítico.
+- Resolución determinista de conflictos por actividad del colono, histéresis y conservación de la propuesta vigente ante mejoras marginales. Sin aprendizaje, servicios externos, Harmony ni dependencias nuevas.
+- **Solo propuestas** de alimentación, descanso y seguridad; cero ejecución de estas acciones incluso con observación desmarcada. No se presupone disponibilidad de comida, cama o refugio. Salud y ropa quedan reservadas para fases posteriores.
+- En observación activa, el director suspende **todas** las escrituras automáticas de prioridades, incluidas restauraciones y botones. Retiene el historial para reanudar/restaurar después. Sus diagnósticos y configuración sí se actualizan.
+- Órdenes forzadas y reclutamiento también bloquean asignaciones y restauraciones del gestor; las restauraciones se aplazan sin perder propiedad. Exclusiones compartidas entre ambos sistemas.
+- Estado mínimo por ID y mapa guardado con Scribe; observaciones, diario limitado a 64 entradas y contadores de sesión se reconstruyen. Se conserva intacta la identidad histórica `AutonomousColonists.AutonomyDirector` para v0.2.
+
+Lee [ARQUITECTURA_DIRECTOR.md](ARQUITECTURA_DIRECTOR.md), [PRUEBAS.md](PRUEBAS.md) y [RENDIMIENTO.md](RENDIMIENTO.md) para políticas, evidencia y límites. **La compilación pasa; guardar/cargar una partida real y Android siguen pendientes.**
+
+## Gestor de prioridades conservado desde v0.3
 
 - Desactivado por defecto **en cada partida**; requiere activar prioridades numéricas en Trabajo y el gestor desde las opciones del mod.
 - Puntúa habilidades (1,5 por nivel) y pasiones (+4 menor, +10 mayor), promediando las habilidades relevantes. Descuenta carga de especialidades y conserva titulares con un margen de estabilidad configurable (6 puntos por defecto).
@@ -31,6 +44,7 @@ Requiere Python 3 y SDK .NET **10**. No necesitas el SDK Android ni reconstruir 
 ```sh
 # Pruebas sin archivos del juego:
 dotnet run --project Tests/AutonomousColonists.Tests.csproj -c Release -- --report TestResults/core-tests.json
+dotnet run --project Tests/Director/AutonomousColonists.Director.Tests.csproj -c Release -- --report TestResults/director-tests.json
 python3 -m unittest discover -s tools -p 'test_*.py' -v
 
 # Build real, pruebas, inspección de metadatos y ZIP instalable:
@@ -42,11 +56,11 @@ python3 tools/build_from_zip.py --managed-dir /ruta/privada/RimWorld
 
 Las referencias exactas son `Assembly-CSharp.dll`, `UnityStubs.dll` y `Waylith.dll` de la misma instalación 1.7. El ZIP privado se extrae a un directorio temporal que se elimina al terminar. `Private=false` impide que MSBuild copie las referencias al resultado. Los artefactos se generan mediante una lista cerrada y sus metadatos se inspeccionan sin ejecutar código del juego.
 
-Salidas: `dist/AutonomousColonists-RimWorld-1.7.zip`, `SHA256SUMS`, `build-report.json`, `api-audit.json`, `core-tests.json`, `packaging-tests.txt`. El informe registra commit, estado del árbol y hashes de las fuentes usadas. No publiques `mods.zip`, referencias privadas ni carpetas de compilación completas.
+Salidas: `dist/AutonomousColonists-RimWorld-1.7.zip`, `SHA256SUMS`, `build-report.json`, `api-audit.json`, `core-tests.json`, `director-tests.json`, `packaging-tests.txt`. El informe registra commit, estado del árbol y hashes de las fuentes usadas. No publiques `mods.zip`, referencias privadas ni carpetas de compilación completas.
 
 ## GitHub Actions
 
-El workflow **Autonomous Colonists mod** añade pruebas públicas independientes del juego. No modifica ni invoca los workflows existentes del APK.
+El workflow existente **Autonomous Colonists mod** se conserva sin cambios. El nuevo **Autonomous Director core** ejecuta las pruebas adicionales y publica su informe sin referencias privadas. No se modifican ni invocan workflows del APK. No se configura runner privado en esta fase.
 
 La generación automática del ZIP necesita referencias privadas. No caben razonablemente en secretos de GitHub, y este proyecto no las publica ni las descarga de terceros:
 
