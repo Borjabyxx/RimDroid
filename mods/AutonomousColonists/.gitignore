@@ -1,0 +1,15 @@
+**/bin/
+**/obj/
+**/.vs/
+*.user
+*.pdb
+**/Assembly-CSharp.dll
+**/UnityStubs.dll
+**/Waylith.dll
+/dist/
+/private/
+*.zip
+
+/1.7/Assemblies/
+/TestResults/
+**/__pycache__/

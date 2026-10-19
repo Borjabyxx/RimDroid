@@ -1,0 +1,39 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <LangVersion>14.0</LangVersion>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <Deterministic>true</Deterministic>
+    <Version>0.3.0</Version>
+    <DebugType>none</DebugType>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <EnableDefaultCompileItems>true</EnableDefaultCompileItems>
+    <GenerateAssemblyInfo>true</GenerateAssemblyInfo>
+    <AssemblyName>AutonomousColonists</AssemblyName>
+    <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+    <GenerateDependencyFile>false</GenerateDependencyFile>
+    <OutputPath>../1.7/Assemblies/</OutputPath>
+  </PropertyGroup>
+  <!-- Private, legally obtained RimWorld 1.7 assemblies. Never commit or distribute them. -->
+  <ItemGroup>
+    <Reference Include="Assembly-CSharp">
+      <HintPath>$(RIMWORLD_MANAGED_DIR)/Assembly-CSharp.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="UnityStubs">
+      <HintPath>$(RIMWORLD_MANAGED_DIR)/UnityStubs.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="Waylith">
+      <HintPath>$(RIMWORLD_MANAGED_DIR)/Waylith.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+  </ItemGroup>
+  <Target Name="CheckGameReferences" BeforeTargets="ResolveReferences">
+    <Error Condition="'$(RIMWORLD_MANAGED_DIR)' == ''" Text="Set RIMWORLD_MANAGED_DIR to the folder containing the RimWorld 1.7 managed game assemblies." />
+    <Error Condition="!Exists('$(RIMWORLD_MANAGED_DIR)/Assembly-CSharp.dll')" Text="Assembly-CSharp.dll not found at RIMWORLD_MANAGED_DIR." />
+    <Error Condition="!Exists('$(RIMWORLD_MANAGED_DIR)/UnityStubs.dll')" Text="UnityStubs.dll not found at RIMWORLD_MANAGED_DIR." />
+    <Error Condition="!Exists('$(RIMWORLD_MANAGED_DIR)/Waylith.dll')" Text="Waylith.dll not found at RIMWORLD_MANAGED_DIR." />
+  </Target>
+</Project>
