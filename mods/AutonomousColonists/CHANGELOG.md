@@ -14,7 +14,7 @@
 - Pruebas automatizadas, benchmark de 1/5/20/50 colonos, auditoría PE estática y ZIP con licencia/instrucciones.
 - Workflow separado para pruebas públicas y distribución con referencias privadas en runner dedicado. Sin cambios de APK ni workflows previos.
 - Diagnóstico opcional de Scribe: XML escrito, lectura bloqueada por Steamworks/Brutal.Core.Logging ausentes; no se presenta como prueba superada.
-- Ejecución real en juego/Android y Actions remoto pendientes.
+- Primera ejecución pública de Actions superada; build remoto privado y ejecución real en juego/Android pendientes.
 
 ## 0.2.0-source — kit de entrada
 

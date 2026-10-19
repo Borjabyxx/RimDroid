@@ -56,7 +56,7 @@ La generación automática del ZIP necesita referencias privadas. No caben razon
 4. Un push a `feat/autonomous-colonists-1.7` que afecte al mod/workflow, o una ejecución manual seleccionando esa rama, prueba, compila e incorpora únicamente ZIP, suma SHA-256 e informes permitidos al artefacto `AutonomousColonists-RimWorld-1.7`.
 5. Descarga ese artefacto desde la ejecución de Actions y extrae el ZIP del mod. Las pull requests ejecutan solo pruebas en un runner público; nunca código de una PR en el runner con archivos privados.
 
-No se ha configurado un runner remoto ni ejecutado Actions desde este entorno; la compilación y las pruebas documentadas son locales. El YAML no puede crear las referencias privadas en los runners públicos.
+La [primera ejecución remota](https://github.com/Borjabyxx/RimDroid/actions/runs/39239475222) del commit `6a1d2a4` terminó correctamente: job `tests` superado e informe publicado; job `package` omitido por su condición de activación privada. La compilación real del mod se ha ejecutado localmente; no se ha configurado desde aquí el runner privado ni se ha observado un ZIP generado remotamente. El YAML no puede crear las referencias privadas en los runners públicos.
 
 ## Límites conocidos
 

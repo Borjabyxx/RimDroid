@@ -35,7 +35,7 @@ Usar una partida de prueba o una copia nueva. Mantener una copia anterior intact
 
 ## GitHub Actions
 
-- [ ] Ejecutar workflow remoto: job de pruebas público, sin DLL privadas.
+- [x] [Workflow remoto 39239475222](https://github.com/Borjabyxx/RimDroid/actions/runs/39239475222), commit `6a1d2a4`: Success; job público `tests` completado y reporte publicado, sin DLL privadas. Job `package` omitido.
 - [ ] Configurar runner privado y variable de activación según README.
 - [ ] Ejecutar build remoto en la rama de confianza y descargar el artefacto; revisar sus seis archivos de salida y el ZIP interior de cuatro archivos.
 - [ ] Confirmar que las PR solo ejecuten las pruebas públicas, sin tocar el runner privado ni los workflows del APK.
