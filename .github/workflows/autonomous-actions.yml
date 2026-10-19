@@ -1,0 +1,33 @@
+name: Autonomous Colonists action authorization
+
+on:
+  push:
+    branches: [feat/autonomous-colonists-1.7]
+    paths: ['mods/AutonomousColonists/**', '.github/workflows/autonomous-actions.yml']
+  pull_request:
+    paths: ['mods/AutonomousColonists/**', '.github/workflows/autonomous-actions.yml']
+
+permissions:
+  contents: read
+
+jobs:
+  actions:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: mods/AutonomousColonists
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - name: Test all modules, authorization, execution boundary and budgets without game files
+        run: dotnet run --project Tests/Actions/AutonomousColonists.Actions.Tests.csproj -c Release -- --report TestResults/action-tests.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: autonomous-actions-tests
+          path: mods/AutonomousColonists/TestResults/action-tests.json
+          if-no-files-found: error

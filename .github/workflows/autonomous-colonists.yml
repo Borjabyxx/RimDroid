@@ -1,0 +1,80 @@
+name: Autonomous Colonists mod
+
+on:
+  push:
+    branches: [feat/autonomous-colonists-1.7]
+    paths:
+      - 'mods/AutonomousColonists/**'
+      - '.github/workflows/autonomous-colonists.yml'
+  pull_request:
+    paths:
+      - 'mods/AutonomousColonists/**'
+      - '.github/workflows/autonomous-colonists.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: mods/AutonomousColonists
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - name: Test pure assignment and ownership (no game files)
+        run: dotnet run --project Tests/AutonomousColonists.Tests.csproj -c Release -- --report TestResults/core-tests.json
+      - name: Test private input validation and packaging
+        run: python3 -m unittest discover -s tools -p 'test_*.py' -v
+      - name: Upload test report only
+        uses: actions/upload-artifact@v4
+        with:
+          name: autonomous-colonists-tests
+          path: mods/AutonomousColonists/TestResults/core-tests.json
+          if-no-files-found: error
+
+  # Public GitHub runners do not have the user's game files. Enable only after
+  # provisioning a private runner; never attach private references to a public job.
+  package:
+    needs: tests
+    if: >-
+      vars.AUTONOMOUS_PRIVATE_BUILD == 'true' &&
+      github.repository == 'Borjabyxx/RimDroid' &&
+      github.event_name != 'pull_request' &&
+      github.ref == 'refs/heads/feat/autonomous-colonists-1.7'
+    runs-on: [self-hosted, linux, x64, rimworld17-private]
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: mods/AutonomousColonists
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - name: Compile and package only the standalone mod
+        shell: bash
+        run: |
+          test -n "$RIMWORLD_MANAGED_DIR"
+          python3 tools/build_from_zip.py --managed-dir "$RIMWORLD_MANAGED_DIR"
+      - name: Upload allowlisted public mod and reports
+        uses: actions/upload-artifact@v4
+        with:
+          name: AutonomousColonists-RimWorld-1.7
+          path: |
+            mods/AutonomousColonists/dist/AutonomousColonists-RimWorld-1.7.zip
+            mods/AutonomousColonists/dist/SHA256SUMS
+            mods/AutonomousColonists/dist/build-report.json
+            mods/AutonomousColonists/dist/core-tests.json
+            mods/AutonomousColonists/dist/api-audit.json
+            mods/AutonomousColonists/dist/packaging-tests.txt
+          if-no-files-found: error

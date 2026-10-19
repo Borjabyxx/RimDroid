@@ -1,0 +1,87 @@
+name: Stage Autonomous Colonists v0.3 experimental
+
+on:
+  push:
+    branches: [feat/autonomous-colonists-1.7]
+    paths:
+      - '.github/workflows/autonomous-colonists-release.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: autonomous-colonists-v0.3.0-experimental
+  cancel-in-progress: false
+
+jobs:
+  stage:
+    if: github.repository == 'Borjabyxx/RimDroid' && github.ref == 'refs/heads/feat/autonomous-colonists-1.7'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Verify and upload the original archive without compiling
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import base64, hashlib, json, os, subprocess, tempfile, zipfile
+          from pathlib import Path
+
+          repo = "Borjabyxx/RimDroid"
+          tag = "v0.3.0-experimental"
+          commit = "c95486c7d8956635e7bab22b3b20321043cc3807"
+          release_id = 417197837
+          blob_sha = "d1b4e387c97fd3ed3f1885761903fdb97ffa7541"
+          expected = "ae1121a63982819c2147b7c5b452c71e6f044ab5a8cf61221ea5978ac381abd9"
+          dll_sha = "7d975864fd867844b4588797f749199c8b8efd1ccf81b748d68eab276b3011a9"
+          filename = "AutonomousColonists-RimWorld-1.7.zip"
+          allowed = {
+              "AutonomousColonists/About/About.xml",
+              "AutonomousColonists/1.7/Assemblies/AutonomousColonists.dll",
+              "AutonomousColonists/INSTALAR.md",
+              "AutonomousColonists/LICENCIA.txt",
+          }
+
+          def gh(*args):
+              result = subprocess.run(["gh", *args], text=True, capture_output=True, timeout=60)
+              if result.returncode:
+                  raise RuntimeError(result.stderr.strip())
+              return result.stdout
+
+          release = json.loads(gh("api", f"repos/{repo}/releases/{release_id}"))
+          assert release["tag_name"] == tag and release["prerelease"] is True
+          assert release["target_commitish"] == commit
+          blob = json.loads(gh("api", f"repos/{repo}/git/blobs/{blob_sha}"))
+          data = base64.b64decode(blob["content"])
+          assert len(data) == 20101 and hashlib.sha256(data).hexdigest() == expected
+
+          with tempfile.TemporaryDirectory(prefix="autonomous-precompiled-") as temporary:
+              root = Path(temporary)
+              archive = root / filename
+              archive.write_bytes(data)
+              with zipfile.ZipFile(archive) as z:
+                  assert len(z.namelist()) == 4 and set(z.namelist()) == allowed
+                  assert z.testzip() is None
+                  assert hashlib.sha256(z.read("AutonomousColonists/1.7/Assemblies/AutonomousColonists.dll")).hexdigest() == dll_sha
+              checksum = root / "SHA256SUMS"
+              checksum.write_text(f"{expected}  {filename}\n", encoding="utf-8")
+              existing = {a["name"]: a for a in release["assets"]}
+              for source in (archive, checksum):
+                  if source.name not in existing:
+                      assert release["draft"], "Refusing to add assets to a published release"
+                      gh("release", "upload", tag, str(source), "--repo", repo)
+                  verify = root / ("verify-" + source.name.replace(".", "_"))
+                  verify.mkdir()
+                  gh("release", "download", tag, "--repo", repo, "--pattern", source.name, "--dir", str(verify))
+                  assert (verify / source.name).read_bytes() == source.read_bytes()
+
+          receipt = {"releaseId": release_id, "tag": tag, "targetCommit": commit,
+                     "zipSha256": expected, "zipBytes": len(data), "uploadedBytesVerified": True,
+                     "compiled": False, "proprietaryLibrariesIncluded": False}
+          print(json.dumps(receipt, indent=2))
+          with open(os.environ["GITHUB_STEP_SUMMARY"], "a", encoding="utf-8") as summary:
+              summary.write(f"Verified the existing precompiled archive for `{commit}`. No build or game libraries.\n\nSHA-256: `{expected}`. Both assets downloaded and byte-verified. Publication is performed separately after verification.\n")
+          PY
